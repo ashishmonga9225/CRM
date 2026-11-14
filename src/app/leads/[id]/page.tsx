@@ -11,6 +11,8 @@ import {
   AlertTriangle,
   Compass,
   CheckCircle2,
+  FileText,
+  Plus,
 } from 'lucide-react';
 import { Lead, FollowUp, SiteVisit, LeadStatus } from '@/lib/types';
 import {
@@ -18,10 +20,12 @@ import {
   fetchFollowUpsForLead,
   fetchSiteVisits,
   updateLeadStatus,
+  addFollowUp,
 } from '@/lib/storage';
 import LogFollowUpModal from '@/components/LogFollowUpModal';
 import ScheduleVisitModal from '@/components/ScheduleVisitModal';
 import WhatsAppModal from '@/components/WhatsAppModal';
+import LeadNotesModal from '@/components/LeadNotesModal';
 
 const STATUS_OPTIONS: { value: LeadStatus; label: string }[] = [
   { value: 'new', label: 'New' },
@@ -46,6 +50,11 @@ export default function LeadDetailPage() {
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [showVisitModal, setShowVisitModal] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [showNotesModal, setShowNotesModal] = useState(false);
+
+  // Inline note state
+  const [inlineNote, setInlineNote] = useState('');
+  const [inlineSubmitting, setInlineSubmitting] = useState(false);
 
   const [showLostConfirm, setShowLostConfirm] = useState(false);
   const [lostReason, setLostReason] = useState('');
@@ -113,6 +122,26 @@ export default function LeadDetailPage() {
     loadData();
   };
 
+  const handleInlineAddNote = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!inlineNote.trim() || !lead) return;
+    setInlineSubmitting(true);
+    try {
+      await addFollowUp(lead.id, {
+        channel: 'other',
+        outcome: 'Note Added',
+        note: inlineNote.trim(),
+      });
+      setInlineNote('');
+      loadData();
+    } catch (err) {
+      console.error(err);
+      alert('Could not save note');
+    } finally {
+      setInlineSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-4 pb-24">
       {/* Top Bar */}
@@ -178,10 +207,10 @@ export default function LeadDetailPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-2">
+          <div className="grid grid-cols-3 gap-2 pt-2">
             <a
               href={`tel:${lead.phone}`}
-              className="h-12 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm"
+              className="h-12 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm"
             >
               <Phone className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
               <span>Call Lead</span>
@@ -189,10 +218,18 @@ export default function LeadDetailPage() {
             <button
               type="button"
               onClick={() => setShowWhatsAppModal(true)}
-              className="h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm"
+              className="h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm"
             >
               <MessageSquare className="w-4 h-4 stroke-[2.5]" />
               <span>WhatsApp</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowNotesModal(true)}
+              className="h-12 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm"
+            >
+              <FileText className="w-4 h-4 text-amber-600" />
+              <span>Notes ({followUps.length})</span>
             </button>
           </div>
         </div>
@@ -270,33 +307,105 @@ export default function LeadDetailPage() {
           </span>
         </div>
 
+        {/* Inline Add Note Composer (Appends to history) */}
+        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+            <span className="flex items-center gap-1.5">
+              <Plus className="w-3.5 h-3.5 text-blue-600" />
+              <span>Add Note / Message</span>
+            </span>
+            <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              Appends &bull; Never overwrites
+            </span>
+          </div>
+
+          <div className="flex flex-wrap gap-1">
+            {[
+              'Interested in 3BHK',
+              'Wants weekend site visit',
+              'Budget confirmed',
+              'Call back tomorrow',
+              'Shared brochure',
+            ].map(phrase => (
+              <button
+                key={phrase}
+                type="button"
+                onClick={() =>
+                  setInlineNote(prev => (prev ? `${prev}. ${phrase}` : phrase))
+                }
+                className="text-[10px] bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-700 text-slate-700 px-2 py-0.5 rounded-md font-medium transition-all"
+              >
+                + {phrase}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-end gap-2 pt-1">
+            <textarea
+              rows={2}
+              value={inlineNote}
+              onChange={e => setInlineNote(e.target.value)}
+              placeholder="Type a note or message here..."
+              className="flex-1 p-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none shadow-inner"
+            />
+            <button
+              type="button"
+              disabled={inlineSubmitting || !inlineNote.trim()}
+              onClick={handleInlineAddNote}
+              className="h-10 px-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1 active:scale-95 transition-all disabled:opacity-50 flex-shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>{inlineSubmitting ? 'Saving...' : 'Add Note'}</span>
+            </button>
+          </div>
+        </div>
+
         {followUps.length === 0 && visits.length === 0 ? (
           <div className="text-center py-6 text-slate-400 text-xs">
-            No activity recorded yet. Tap &ldquo;Log Follow-up&rdquo; below to record the first call.
+            No activity recorded yet. Write a note above or tap &ldquo;Log Follow-up&rdquo; below to record the first contact.
           </div>
         ) : (
           <div className="space-y-3 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-slate-200">
-            {followUps.map(fu => (
-              <div key={fu.id} className="relative flex items-start gap-3 pl-2">
-                <div className="w-4 h-4 rounded-full bg-blue-600 border-2 border-white ring-2 ring-blue-100 z-10 flex-shrink-0 mt-1" />
-                <div className="flex-1 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-900 capitalize">
-                      {fu.channel} &bull; {fu.outcome || 'Logged'}
-                    </span>
-                    <span className="text-[10px] text-slate-600">
-                      {new Date(fu.contacted_at || fu.created_at).toLocaleDateString('en-IN', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
+            {followUps.map(fu => {
+              const isWhatsApp = fu.channel === 'whatsapp';
+              const isCall = fu.channel === 'call';
+              return (
+                <div key={fu.id} className="relative flex items-start gap-3 pl-2">
+                  <div
+                    className={`w-4 h-4 rounded-full border-2 border-white z-10 flex-shrink-0 mt-1 ${
+                      isWhatsApp
+                        ? 'bg-emerald-600 ring-2 ring-emerald-100'
+                        : isCall
+                        ? 'bg-blue-600 ring-2 ring-blue-100'
+                        : 'bg-amber-500 ring-2 ring-amber-100'
+                    }`}
+                  />
+                  <div className="flex-1 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 capitalize flex items-center gap-1.5">
+                        {isWhatsApp ? (
+                          <MessageSquare className="w-3 h-3 text-emerald-600" />
+                        ) : isCall ? (
+                          <Phone className="w-3 h-3 text-blue-600" />
+                        ) : (
+                          <FileText className="w-3 h-3 text-amber-600" />
+                        )}
+                        <span>{fu.outcome || fu.channel}</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        {new Date(fu.contacted_at || fu.created_at).toLocaleDateString('en-IN', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-slate-800 leading-relaxed font-medium">{fu.note}</p>
                   </div>
-                  <p className="text-slate-700">{fu.note}</p>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {visits.map(v => (
               <div key={v.id} className="relative flex items-start gap-3 pl-2">
@@ -399,6 +508,15 @@ export default function LeadDetailPage() {
           isOpen={showWhatsAppModal}
           onClose={() => setShowWhatsAppModal(false)}
           onFollowUpLogged={loadData}
+        />
+      )}
+
+      {showNotesModal && (
+        <LeadNotesModal
+          lead={lead}
+          isOpen={showNotesModal}
+          onClose={() => setShowNotesModal(false)}
+          onNotesUpdated={loadData}
         />
       )}
     </div>

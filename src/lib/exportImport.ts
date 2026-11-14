@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import { Lead, LeadStatus, Temperature } from './types';
-import { saveLead, checkDuplicatePhone } from './storage';
+import { saveLead, checkDuplicatePhone, addFollowUp } from './storage';
 
 export interface ParsedLeadRow {
   name: string;
@@ -214,12 +214,19 @@ export async function commitBulkLeads(
           requirement: item.requirement || existing.requirement,
           lost_reason: item.status === 'lost' ? item.notes || 'Marked lost during import' : undefined,
         });
+        if (item.notes && item.notes.trim()) {
+          await addFollowUp(existing.id, {
+            channel: 'other',
+            outcome: 'Imported Note',
+            note: item.notes.trim(),
+          });
+        }
         updated++;
         continue;
       }
     }
 
-    await saveLead({
+    const created = await saveLead({
       name: item.name,
       phone: item.phone,
       email: item.email,
@@ -230,6 +237,13 @@ export async function commitBulkLeads(
       lost_reason: item.status === 'lost' ? item.notes || 'Marked lost during import' : undefined,
       next_follow_up_at: todayIso,
     });
+    if (created && item.notes && item.notes.trim()) {
+      await addFollowUp(created.id, {
+        channel: 'other',
+        outcome: 'Imported Note',
+        note: item.notes.trim(),
+      });
+    }
     added++;
   }
 

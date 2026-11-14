@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, Check } from 'lucide-react';
-import { Lead, Channel } from '@/lib/types';
-import { addFollowUp } from '@/lib/storage';
+import React, { useState, useEffect } from 'react';
+import { X, Check, History, MessageSquare, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { Lead, Channel, FollowUp } from '@/lib/types';
+import { addFollowUp, fetchFollowUpsForLead } from '@/lib/storage';
 
 interface LogFollowUpModalProps {
   lead: Lead;
@@ -37,6 +37,14 @@ export default function LogFollowUpModal({
   const [outcome, setOutcome] = useState('Connected');
   const [channel, setChannel] = useState<Channel>('call');
   const [note, setNote] = useState('');
+  const [pastNotes, setPastNotes] = useState<FollowUp[]>([]);
+  const [showPastNotes, setShowPastNotes] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && lead) {
+      fetchFollowUpsForLead(lead.id).then(setPastNotes).catch(console.error);
+    }
+  }, [isOpen, lead?.id]);
 
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
   const in3Days = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0];
@@ -93,6 +101,47 @@ export default function LogFollowUpModal({
 
         {/* Content Body */}
         <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 flex-1">
+          {/* Past Notes & Messages History Toggle */}
+          {pastNotes.length > 0 && (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowPastNotes(prev => !prev)}
+                className="w-full flex items-center justify-between text-xs font-bold text-slate-800"
+              >
+                <div className="flex items-center gap-1.5">
+                  <History className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Past Notes & Messages ({pastNotes.length})</span>
+                </div>
+                <div className="flex items-center gap-1 text-[11px] text-blue-600 font-extrabold">
+                  <span>{showPastNotes ? 'Hide' : 'Show All'}</span>
+                  {showPastNotes ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </div>
+              </button>
+
+              {showPastNotes && (
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1 pt-1 border-t border-slate-200">
+                  {pastNotes.map(fu => (
+                    <div key={fu.id} className="bg-white p-2.5 rounded-xl border border-slate-100 text-xs space-y-1">
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium">
+                        <span className="font-bold text-slate-800 capitalize flex items-center gap-1">
+                          {fu.channel === 'whatsapp' ? (
+                            <MessageSquare className="w-3 h-3 text-emerald-600" />
+                          ) : (
+                            <FileText className="w-3 h-3 text-blue-600" />
+                          )}
+                          <span>{fu.channel} &bull; {fu.outcome || 'Note'}</span>
+                        </span>
+                        <span>{new Date(fu.contacted_at || fu.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      <p className="text-slate-700 leading-relaxed font-medium">{fu.note}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Step 1: Channel */}
           <div>
             <label className="text-xs font-bold text-slate-700 mb-1.5 block">
@@ -229,15 +278,18 @@ export default function LogFollowUpModal({
             />
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 space-y-1.5">
             <button
               type="submit"
               disabled={isSubmitting}
               className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
             >
               <Check className="w-5 h-5 stroke-[2.5]" />
-              <span>{isSubmitting ? 'Saving...' : 'Save Follow-up'}</span>
+              <span>{isSubmitting ? 'Saving...' : '+ Add New Follow-up Note'}</span>
             </button>
+            <p className="text-[10px] text-center text-slate-400 font-medium">
+              Every note is added as a new entry in the client&apos;s history (never overwrites).
+            </p>
           </div>
         </form>
       </div>

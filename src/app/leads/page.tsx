@@ -11,12 +11,14 @@ import {
   ChevronRight,
   Clock,
   Upload,
+  FileText,
 } from 'lucide-react';
 import { Lead, Temperature, LeadStatus, Project } from '@/lib/types';
 import { fetchLeads, fetchProjects } from '@/lib/storage';
 import LogFollowUpModal from '@/components/LogFollowUpModal';
 import LeadCard from '@/components/LeadCard';
 import WhatsAppModal from '@/components/WhatsAppModal';
+import LeadNotesModal from '@/components/LeadNotesModal';
 
 const STATUSES: { value: LeadStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -43,6 +45,7 @@ export default function LeadsListPage() {
   // Modals
   const [followUpLead, setFollowUpLead] = useState<Lead | null>(null);
   const [whatsAppLead, setWhatsAppLead] = useState<Lead | null>(null);
+  const [notesLead, setNotesLead] = useState<Lead | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -197,6 +200,7 @@ export default function LeadsListPage() {
                 lead={lead}
                 onLogFollowUp={l => setFollowUpLead(l)}
                 onWhatsApp={l => setWhatsAppLead(l)}
+                onViewNotes={l => setNotesLead(l)}
               />
             ))}
           </div>
@@ -282,6 +286,15 @@ export default function LeadsListPage() {
                             <MessageSquare className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            type="button"
+                            onClick={() => setNotesLead(lead)}
+                            className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[11px] flex items-center gap-1 border border-amber-200"
+                            title="View all Notes & Messages"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Notes {lead.follow_ups && lead.follow_ups.length > 0 ? `(${lead.follow_ups.length})` : ''}</span>
+                          </button>
+                          <button
                             onClick={() => setFollowUpLead(lead)}
                             className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[11px]"
                           >
@@ -313,6 +326,15 @@ export default function LeadsListPage() {
           isOpen={Boolean(whatsAppLead)}
           onClose={() => setWhatsAppLead(null)}
           onFollowUpLogged={loadData}
+        />
+      )}
+
+      {notesLead && (
+        <LeadNotesModal
+          lead={notesLead}
+          isOpen={Boolean(notesLead)}
+          onClose={() => setNotesLead(null)}
+          onNotesUpdated={loadData}
         />
       )}
     </div>

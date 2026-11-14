@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Phone, MessageSquare, ChevronRight, Clock, Building2, CheckCircle2 } from 'lucide-react';
+import { Phone, MessageSquare, ChevronRight, Clock, Building2, CheckCircle2, FileText, Plus } from 'lucide-react';
 import { Lead } from '@/lib/types';
 
 interface LeadCardProps {
@@ -10,12 +10,14 @@ interface LeadCardProps {
   onLogFollowUp: (lead: Lead) => void;
   onWhatsApp?: (lead: Lead) => void;
   onScheduleVisit?: (lead: Lead) => void;
+  onViewNotes?: (lead: Lead) => void;
 }
 
 export default function LeadCard({
   lead,
   onLogFollowUp,
   onWhatsApp,
+  onViewNotes,
 }: LeadCardProps) {
   const cleanPhone = lead.phone.replace(/\D/g, '');
   const waPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
@@ -122,24 +124,63 @@ export default function LeadCard({
         </div>
       </div>
 
-      {/* Last follow-up note (if any) */}
-      {lead.last_follow_up && (
-        <div className="mb-3 px-2 py-1.5 rounded-lg bg-amber-50/70 border border-amber-200/60 text-xs">
-          <div className="flex items-center justify-between text-[11px] text-amber-800 font-semibold mb-0.5">
-            <span>Last {lead.last_follow_up.channel}:</span>
-            <span>{new Date(lead.last_follow_up.contacted_at || lead.last_follow_up.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</span>
+      {/* Notes & Messages Preview / History Trigger */}
+      {lead.last_follow_up ? (
+        <button
+          type="button"
+          onClick={() => (onViewNotes ? onViewNotes(lead) : onLogFollowUp(lead))}
+          className="w-full text-left mb-3 p-2.5 rounded-xl bg-amber-50/80 border border-amber-200/80 hover:bg-amber-100/70 transition-all group"
+        >
+          <div className="flex items-center justify-between text-[11px] text-amber-900 font-bold mb-1">
+            <span className="flex items-center gap-1.5 capitalize">
+              <FileText className="w-3.5 h-3.5 text-amber-700" />
+              Latest {lead.last_follow_up.channel}:
+              <span className="font-normal text-amber-700 text-[10px]">
+                {new Date(
+                  lead.last_follow_up.contacted_at || lead.last_follow_up.created_at
+                ).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+              </span>
+            </span>
+            <span className="text-[10px] text-blue-700 font-extrabold group-hover:underline flex items-center gap-0.5">
+              <span>View all {lead.follow_ups?.length || 1} msgs</span>
+              <ChevronRight className="w-3 h-3" />
+            </span>
           </div>
           <p className="text-slate-800 text-[11px] line-clamp-2 leading-relaxed">
             &ldquo;{lead.last_follow_up.note}&rdquo;
           </p>
+        </button>
+      ) : (
+        <div className="flex items-center justify-between mb-3 px-1 text-xs">
+          <span className="text-[11px] text-slate-400">No notes recorded yet</span>
+          <button
+            type="button"
+            onClick={() => (onViewNotes ? onViewNotes(lead) : onLogFollowUp(lead))}
+            className="text-[11px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded-md"
+          >
+            <Plus className="w-3 h-3" />
+            <span>+ Add Note</span>
+          </button>
         </div>
       )}
 
       {/* Next Follow-up timing pill */}
       <div className="flex items-center justify-between text-xs mb-3">
         <div className="flex items-center gap-1.5 font-bold">
-          <Clock className={`w-3.5 h-3.5 ${isOverdue ? 'text-red-600' : isDueToday ? 'text-amber-600' : 'text-slate-500'}`} />
-          <span className={isOverdue ? 'text-red-700 font-extrabold' : isDueToday ? 'text-amber-700 font-extrabold' : 'text-slate-600'}>
+          <Clock
+            className={`w-3.5 h-3.5 ${
+              isOverdue ? 'text-red-600' : isDueToday ? 'text-amber-600' : 'text-slate-500'
+            }`}
+          />
+          <span
+            className={
+              isOverdue
+                ? 'text-red-700 font-extrabold'
+                : isDueToday
+                ? 'text-amber-700 font-extrabold'
+                : 'text-slate-600'
+            }
+          >
             {isOverdue
               ? `Overdue (${leadDateStr})`
               : isDueToday
@@ -151,13 +192,13 @@ export default function LeadCard({
         </div>
       </div>
 
-      {/* ACTION BAR (Thumb Friendly Large Touch Targets) */}
-      <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
+      {/* ACTION BAR (Thumb Friendly Touch Targets) */}
+      <div className="grid grid-cols-4 gap-1.5 pt-1 border-t border-slate-100">
         <a
           href={`tel:${lead.phone}`}
-          className="h-11 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm"
+          className="h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all shadow-sm"
         >
-          <Phone className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
+          <Phone className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
           <span>Call</span>
         </a>
 
@@ -166,9 +207,9 @@ export default function LeadCard({
           <button
             type="button"
             onClick={() => onWhatsApp(lead)}
-            className="h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm"
+            className="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all shadow-sm"
           >
-            <MessageSquare className="w-4 h-4 stroke-[2.5]" />
+            <MessageSquare className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>WhatsApp</span>
           </button>
         ) : (
@@ -176,20 +217,30 @@ export default function LeadCard({
             href={defaultWhatsAppUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm"
+            className="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all shadow-sm"
           >
-            <MessageSquare className="w-4 h-4 stroke-[2.5]" />
+            <MessageSquare className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>WhatsApp</span>
           </a>
         )}
 
+        {/* Notes & Messages History */}
+        <button
+          type="button"
+          onClick={() => (onViewNotes ? onViewNotes(lead) : onLogFollowUp(lead))}
+          className="h-10 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all"
+        >
+          <FileText className="w-3.5 h-3.5 text-amber-600" />
+          <span>Notes {lead.follow_ups && lead.follow_ups.length > 0 ? `(${lead.follow_ups.length})` : ''}</span>
+        </button>
+
         <button
           type="button"
           onClick={() => onLogFollowUp(lead)}
-          className="h-11 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition-all"
+          className="h-10 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-bold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all"
         >
-          <CheckCircle2 className="w-4 h-4 stroke-[2.5] text-blue-600" />
-          <span>Follow up</span>
+          <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.5] text-blue-600" />
+          <span>Stage</span>
         </button>
       </div>
     </div>

@@ -9,11 +9,14 @@ import {
   Search,
   ChevronRight,
   RefreshCw,
+  FileText,
+  Plus,
 } from 'lucide-react';
 import { Lead, LeadStatus } from '@/lib/types';
 import { fetchLeads, updateLeadStatus } from '@/lib/storage';
 import LogFollowUpModal from '@/components/LogFollowUpModal';
 import WhatsAppModal from '@/components/WhatsAppModal';
+import LeadNotesModal from '@/components/LeadNotesModal';
 
 type FilterCategory = 'all' | 'interested' | 'not_interested' | 'new' | 'visits' | 'booked';
 
@@ -25,6 +28,7 @@ export default function LeadStatusBoardPage() {
   
   const [followUpLead, setFollowUpLead] = useState<Lead | null>(null);
   const [whatsAppLead, setWhatsAppLead] = useState<Lead | null>(null);
+  const [notesLead, setNotesLead] = useState<Lead | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -377,6 +381,40 @@ export default function LeadStatusBoardPage() {
                   )}
                 </div>
 
+                {/* Notes & Messages Preview */}
+                {lead.last_follow_up ? (
+                  <button
+                    type="button"
+                    onClick={() => setNotesLead(lead)}
+                    className="w-full text-left my-2 p-2 rounded-xl bg-amber-50/70 border border-amber-200/70 hover:bg-amber-100/70 transition-all text-xs group"
+                  >
+                    <div className="flex items-center justify-between text-[10px] text-amber-900 font-bold mb-0.5">
+                      <span className="flex items-center gap-1">
+                        <FileText className="w-3 h-3 text-amber-700" />
+                        Latest {lead.last_follow_up.channel || 'Note'}:
+                      </span>
+                      <span className="text-blue-700 font-bold group-hover:underline">
+                        View all {lead.follow_ups?.length || 1} msgs &rarr;
+                      </span>
+                    </div>
+                    <p className="text-slate-800 text-[11px] line-clamp-1 italic">
+                      &ldquo;{lead.last_follow_up.note}&rdquo;
+                    </p>
+                  </button>
+                ) : (
+                  <div className="flex items-center justify-between my-2 px-1 text-[11px]">
+                    <span className="text-slate-400">No notes yet</span>
+                    <button
+                      type="button"
+                      onClick={() => setNotesLead(lead)}
+                      className="text-blue-600 hover:text-blue-800 font-bold flex items-center gap-0.5"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>+ Add Note</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Quick Status Action Controls */}
                 <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5">
@@ -394,6 +432,15 @@ export default function LeadStatusBoardPage() {
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
                       <span>WhatsApp</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNotesLead(lead)}
+                      className="px-2.5 py-1.5 rounded-xl bg-amber-50 text-amber-800 font-bold text-xs hover:bg-amber-100 flex items-center gap-1 border border-amber-200"
+                      title="View all Notes & Messages"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Notes {lead.follow_ups && lead.follow_ups.length > 0 ? `(${lead.follow_ups.length})` : ''}</span>
                     </button>
                     <button
                       onClick={() => setFollowUpLead(lead)}
@@ -456,6 +503,15 @@ export default function LeadStatusBoardPage() {
           isOpen={Boolean(whatsAppLead)}
           onClose={() => setWhatsAppLead(null)}
           onFollowUpLogged={loadData}
+        />
+      )}
+
+      {notesLead && (
+        <LeadNotesModal
+          lead={notesLead}
+          isOpen={Boolean(notesLead)}
+          onClose={() => setNotesLead(null)}
+          onNotesUpdated={loadData}
         />
       )}
     </div>

@@ -16,6 +16,7 @@ import LeadCard from '@/components/LeadCard';
 import LogFollowUpModal from '@/components/LogFollowUpModal';
 import ScheduleVisitModal from '@/components/ScheduleVisitModal';
 import WhatsAppModal from '@/components/WhatsAppModal';
+import LeadNotesModal from '@/components/LeadNotesModal';
 
 export default function TodayPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -25,6 +26,7 @@ export default function TodayPage() {
   const [activeLeadForFollowUp, setActiveLeadForFollowUp] = useState<Lead | null>(null);
   const [activeLeadForVisit, setActiveLeadForVisit] = useState<Lead | null>(null);
   const [activeLeadForWhatsApp, setActiveLeadForWhatsApp] = useState<Lead | null>(null);
+  const [activeLeadForNotes, setActiveLeadForNotes] = useState<Lead | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -237,6 +239,7 @@ export default function TodayPage() {
                     onLogFollowUp={l => setActiveLeadForFollowUp(l)}
                     onWhatsApp={l => setActiveLeadForWhatsApp(l)}
                     onScheduleVisit={l => setActiveLeadForVisit(l)}
+                    onViewNotes={l => setActiveLeadForNotes(l)}
                   />
                 ))}
               </div>
@@ -259,6 +262,7 @@ export default function TodayPage() {
                     onLogFollowUp={l => setActiveLeadForFollowUp(l)}
                     onWhatsApp={l => setActiveLeadForWhatsApp(l)}
                     onScheduleVisit={l => setActiveLeadForVisit(l)}
+                    onViewNotes={l => setActiveLeadForNotes(l)}
                   />
                 ))}
               </div>
@@ -281,6 +285,7 @@ export default function TodayPage() {
                     onLogFollowUp={l => setActiveLeadForFollowUp(l)}
                     onWhatsApp={l => setActiveLeadForWhatsApp(l)}
                     onScheduleVisit={l => setActiveLeadForVisit(l)}
+                    onViewNotes={l => setActiveLeadForNotes(l)}
                   />
                 ))}
               </div>
@@ -313,6 +318,15 @@ export default function TodayPage() {
           isOpen={Boolean(activeLeadForWhatsApp)}
           onClose={() => setActiveLeadForWhatsApp(null)}
           onFollowUpLogged={loadData}
+        />
+      )}
+
+      {activeLeadForNotes && (
+        <LeadNotesModal
+          lead={activeLeadForNotes}
+          isOpen={Boolean(activeLeadForNotes)}
+          onClose={() => setActiveLeadForNotes(null)}
+          onNotesUpdated={loadData}
         />
       )}
     </div>

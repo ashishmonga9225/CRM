@@ -167,6 +167,54 @@ const INITIAL_VISITS: SiteVisit[] = [
   },
 ];
 
+const INITIAL_FOLLOWUPS: FollowUp[] = [
+  {
+    id: 'fu-1a',
+    lead_id: 'lead-1',
+    contacted_at: new Date(Date.now() - 3600000).toISOString(),
+    channel: 'call',
+    outcome: 'Site visit promised',
+    note: 'Spoke for 15 mins. Wants to visit project with family this Sunday morning.',
+    created_at: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: 'fu-1b',
+    lead_id: 'lead-1',
+    contacted_at: new Date(Date.now() - 86400000).toISOString(),
+    channel: 'whatsapp',
+    outcome: 'WhatsApp message sent',
+    note: 'Hi Rahul, Ashish this side. We have received your query regarding 3 BHK corner unit. Are you looking for investment or self-use?',
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: 'fu-2a',
+    lead_id: 'lead-2',
+    contacted_at: new Date(Date.now() - 86400000).toISOString(),
+    channel: 'whatsapp',
+    outcome: 'Brochure sent',
+    note: 'Shared digital brochure and payment plans. No reply yet.',
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: 'fu-3a',
+    lead_id: 'lead-3',
+    contacted_at: new Date().toISOString(),
+    channel: 'meeting',
+    outcome: 'Negotiation stage',
+    note: 'Completed site visit yesterday. Loved 2nd floor unit. Call today to negotiate final pricing.',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'fu-3b',
+    lead_id: 'lead-3',
+    contacted_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+    channel: 'call',
+    outcome: 'Visit scheduled',
+    note: 'Initial inquiry via Dr. Kohli reference. Scheduled site visit with architect.',
+    created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+  },
+];
+
 const LOCAL_STORAGE_KEY_LEADS = 'crm_leads_v2';
 const LOCAL_STORAGE_KEY_PROJECTS = 'crm_projects_v2';
 const LOCAL_STORAGE_KEY_FOLLOWUPS = 'crm_followups_v2';
@@ -246,10 +294,11 @@ export async function fetchLeads(): Promise<Lead[]> {
     if (!error && data) {
       return data.map((l: any) => {
         const sortedFu = l.follow_ups?.sort((a: any, b: any) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          new Date(b.contacted_at || b.created_at).getTime() - new Date(a.contacted_at || a.created_at).getTime()
         );
         return {
           ...l,
+          follow_ups: sortedFu || [],
           last_follow_up: sortedFu && sortedFu.length > 0 ? sortedFu[0] : undefined,
         };
       });
@@ -258,10 +307,23 @@ export async function fetchLeads(): Promise<Lead[]> {
 
   const local = getLocal<Lead[]>(LOCAL_STORAGE_KEY_LEADS, INITIAL_LEADS);
   const projects = await fetchProjects();
-  return local.map(lead => ({
-    ...lead,
-    project: projects.find(p => p.id === lead.project_id),
-  }));
+  const allFollowUps = getLocal<FollowUp[]>(LOCAL_STORAGE_KEY_FOLLOWUPS, INITIAL_FOLLOWUPS);
+  return local.map(lead => {
+    const leadFus = allFollowUps
+      .filter(f => f.lead_id === lead.id)
+      .sort(
+        (a, b) =>
+          new Date(b.contacted_at || b.created_at).getTime() -
+          new Date(a.contacted_at || a.created_at).getTime()
+      );
+    return {
+      ...lead,
+      project: projects.find(p => p.id === lead.project_id),
+      follow_ups:
+        leadFus.length > 0 ? leadFus : lead.last_follow_up ? [lead.last_follow_up] : [],
+      last_follow_up: leadFus[0] || lead.last_follow_up,
+    };
+  });
 }
 
 export async function fetchLeadById(id: string): Promise<Lead | null> {
@@ -391,7 +453,7 @@ export async function addFollowUp(
     created_at: new Date().toISOString(),
   };
 
-  const allFollowUps = getLocal<FollowUp[]>(LOCAL_STORAGE_KEY_FOLLOWUPS, []);
+  const allFollowUps = getLocal<FollowUp[]>(LOCAL_STORAGE_KEY_FOLLOWUPS, INITIAL_FOLLOWUPS);
   setLocal(LOCAL_STORAGE_KEY_FOLLOWUPS, [followUp, ...allFollowUps]);
 
   // Update lead in local storage
@@ -411,6 +473,18 @@ export async function addFollowUp(
   setLocal(LOCAL_STORAGE_KEY_LEADS, updatedLeads);
 
   return followUp;
+}
+
+export async function addLeadNote(
+  leadId: string,
+  noteText: string,
+  channel: Channel = 'other'
+): Promise<FollowUp> {
+  return addFollowUp(leadId, {
+    channel,
+    note: noteText.trim(),
+    outcome: 'Note Added',
+  });
 }
 
 export async function fetchFollowUpsForLead(leadId: string): Promise<FollowUp[]> {
