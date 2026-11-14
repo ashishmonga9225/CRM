@@ -1,0 +1,16 @@
+{
+  "name": "Lead Follow-up CRM",
+  "short_name": "LeadCRM",
+  "description": "Fast phone-first lead follow-up CRM for one-handed use between calls and site visits.",
+  "start_url": "/today",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
