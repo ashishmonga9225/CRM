@@ -251,41 +251,250 @@ export async function commitBulkLeads(
 }
 
 // Export All Leads to Excel (.xlsx) file
-export function exportLeadsToExcel(leads: Lead[]): void {
-  const exportData = leads.map(l => ({
+export function exportLeadsToExcel(leads: Lead[], customFilename?: string): void {
+  const exportData = leads.map((l, idx) => ({
+    'S.No': idx + 1,
     'Name': l.name,
-    'Number': l.phone,
-    'Status': l.status,
-    'Temperature': l.temperature,
-    'Source': l.source || '',
+    'Phone': l.phone,
+    'Status': l.status.replace('_', ' '),
+    'Temperature': l.temperature.toUpperCase(),
+    'Source': l.source || 'Direct',
+    'Project': l.project?.name || '',
     'Budget Min': l.budget_min || '',
     'Budget Max': l.budget_max || '',
     'Requirement': l.requirement || '',
-    'Project': l.project?.name || '',
-    'Next Follow-Up': l.next_follow_up_at ? new Date(l.next_follow_up_at).toLocaleDateString('en-IN') : '',
+    'Next Follow-Up': l.next_follow_up_at
+      ? new Date(l.next_follow_up_at).toLocaleDateString('en-IN')
+      : '',
+    'Latest Note': l.last_follow_up?.note || '',
     'Lost Reason': l.lost_reason || '',
-    'Created At': new Date(l.created_at).toLocaleDateString('en-IN')
+    'Created At': new Date(l.created_at).toLocaleDateString('en-IN'),
   }));
 
   const ws = XLSX.utils.json_to_sheet(exportData);
   ws['!cols'] = [
+    { wch: 6 },
     { wch: 18 },
     { wch: 15 },
-    { wch: 18 },
+    { wch: 16 },
     { wch: 12 },
     { wch: 15 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 25 },
     { wch: 22 },
-    { wch: 16 },
+    { wch: 14 },
+    { wch: 14 },
     { wch: 25 },
+    { wch: 16 },
+    { wch: 35 },
+    { wch: 20 },
     { wch: 14 },
   ];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Leads');
-  XLSX.writeFile(wb, `Leads_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+  const filename =
+    customFilename || `Leads_Export_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+// Export Leads to Printable PDF Report
+export function exportLeadsToPDF(
+  leads: Lead[],
+  title: string = 'All Leads Report'
+): void {
+  if (typeof window === 'undefined') return;
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert(
+      'Please allow popups to open the PDF report print preview, or use Excel download.'
+    );
+    return;
+  }
+
+  const rowsHtml = leads
+    .map(
+      (l, idx) => `
+    <tr>
+      <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">
+        ${idx + 1}. ${l.name}
+        <div style="font-size: 10px; color: #64748b; font-weight: normal;">${l.source || 'Direct'}</div>
+      </td>
+      <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-family: monospace; font-weight: 600; color: #1e293b;">
+        ${l.phone}
+      </td>
+      <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; font-size: 10px; font-weight: bold;">
+        <span style="display: inline-block; padding: 2px 7px; border-radius: 9999px; ${
+          l.temperature === 'hot'
+            ? 'background: #fee2e2; color: #991b1b;'
+            : l.temperature === 'warm'
+            ? 'background: #fef3c7; color: #92400e;'
+            : 'background: #dbeafe; color: #1e40af;'
+        }">
+          ${l.temperature}
+        </span>
+      </td>
+      <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; text-transform: capitalize; font-weight: 600; color: #334155;">
+        ${l.status.replace('_', ' ')}
+      </td>
+      <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #0f172a; font-weight: 600;">
+        ${l.project?.name || 'Any'}
+      </td>
+      <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #334155;">
+        ${l.requirement || '—'}
+      </td>
+      <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; font-weight: 700; color: #1d4ed8;">
+        ${l.next_follow_up_at ? new Date(l.next_follow_up_at).toLocaleDateString('en-IN') : '—'}
+      </td>
+      <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 10px; color: #475569; max-width: 220px; line-height: 1.35;">
+        ${l.last_follow_up?.note ? `"${l.last_follow_up.note}"` : '—'}
+      </td>
+    </tr>
+  `
+    )
+    .join('');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${title} - ${new Date().toISOString().split('T')[0]}</title>
+        <style>
+          @page {
+            size: A4 landscape;
+            margin: 10mm;
+          }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 18px;
+            color: #0f172a;
+            background: #ffffff;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #2563eb;
+            padding-bottom: 10px;
+            margin-bottom: 14px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 800;
+            color: #0f172a;
+          }
+          .header .sub {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 2px;
+          }
+          .badge {
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-weight: bold;
+            font-size: 12px;
+            padding: 5px 12px;
+            border-radius: 8px;
+            border: 1px solid #bfdbfe;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            text-align: left;
+          }
+          th {
+            background: #f8fafc;
+            color: #475569;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 7px 10px;
+            border-bottom: 2px solid #cbd5e1;
+            font-weight: 700;
+          }
+          .footer {
+            margin-top: 18px;
+            padding-top: 10px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #94a3b8;
+          }
+          @media print {
+            body { padding: 0; }
+            .no-print { display: none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="no-print" style="margin-bottom: 16px; background: #eff6ff; border: 1px solid #bfdbfe; padding: 10px 16px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; font-weight: 600; color: #1e40af;">
+            📄 Report ready with ${leads.length} leads. Select "Save as PDF" in the destination dropdown in the print preview dialog.
+          </span>
+          <button onclick="window.print()" style="background: #2563eb; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">
+            Print / Save as PDF
+          </button>
+        </div>
+
+        <div class="header">
+          <div>
+            <h1>Lead Follow-up CRM &bull; ${title}</h1>
+            <div class="sub">Generated on ${new Date().toLocaleDateString('en-IN', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })} &bull; Ashish CRM</div>
+          </div>
+          <div class="badge">
+            Total Leads: ${leads.length}
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Lead Name</th>
+              <th>Phone</th>
+              <th>Temp</th>
+              <th>Status</th>
+              <th>Project</th>
+              <th>Requirement</th>
+              <th>Next Follow-up</th>
+              <th>Latest Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <span>Lead Follow-up CRM &copy; ${new Date().getFullYear()}</span>
+          <span>Confidential Client Record</span>
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        </script>
+      </body>
+    </html>
+  `;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
 }
 
 export function exportLeadsToCSV(leads: Lead[]): void {

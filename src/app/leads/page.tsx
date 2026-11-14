@@ -12,9 +12,16 @@ import {
   Clock,
   Upload,
   FileText,
+  Download,
+  FileSpreadsheet,
+  ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight,
+  Check,
 } from 'lucide-react';
 import { Lead, Temperature, LeadStatus, Project } from '@/lib/types';
 import { fetchLeads, fetchProjects } from '@/lib/storage';
+import { exportLeadsToExcel, exportLeadsToPDF } from '@/lib/exportImport';
 import LogFollowUpModal from '@/components/LogFollowUpModal';
 import LeadCard from '@/components/LeadCard';
 import WhatsAppModal from '@/components/WhatsAppModal';
@@ -41,6 +48,11 @@ export default function LeadsListPage() {
   const [selectedStatus, setSelectedStatus] = useState<LeadStatus | 'all'>('all');
   const [selectedTemp, setSelectedTemp] = useState<Temperature | 'all'>('all');
   const [selectedProject, setSelectedProject] = useState<string>('all');
+
+  // Pagination & Export
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Modals
   const [followUpLead, setFollowUpLead] = useState<Lead | null>(null);
@@ -74,6 +86,18 @@ export default function LeadsListPage() {
     return matchesSearch && matchesStatus && matchesTemp && matchesProject;
   });
 
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedStatus, selectedTemp, selectedProject, pageSize]);
+
+  const totalItems = filteredLeads.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const paginatedLeads = filteredLeads.slice(startIndex, endIndex);
+
   return (
     <div className="space-y-4">
       {/* Header Row */}
@@ -87,13 +111,108 @@ export default function LeadsListPage() {
           </h1>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 relative">
+          {/* Download / Export Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowExportMenu(prev => !prev)}
+              className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3 py-2.5 rounded-xl shadow-md transition-all active:scale-95"
+              title="Download Data in Excel or PDF"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download</span>
+            </button>
+
+            {showExportMenu && (
+              <div
+                className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 p-2 space-y-1 animate-in fade-in zoom-in-95 duration-100"
+                onMouseLeave={() => setShowExportMenu(false)}
+              >
+                <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                  Excel (.xlsx) Download
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    exportLeadsToExcel(
+                      paginatedLeads,
+                      `Leads_Page_${safeCurrentPage}_${new Date().toISOString().split('T')[0]}.xlsx`
+                    );
+                    setShowExportMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 flex items-center justify-between transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                    <span>Current Page ({paginatedLeads.length})</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">.xlsx</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    exportLeadsToExcel(
+                      filteredLeads,
+                      `All_Leads_${new Date().toISOString().split('T')[0]}.xlsx`
+                    );
+                    setShowExportMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 flex items-center justify-between transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                    <span>All Leads ({filteredLeads.length})</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">.xlsx</span>
+                </button>
+
+                <div className="border-t border-slate-100 my-1" />
+
+                <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                  PDF Report Download
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    exportLeadsToPDF(
+                      paginatedLeads,
+                      `Leads Report (Page ${safeCurrentPage})`
+                    );
+                    setShowExportMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-900 flex items-center justify-between transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    <span>Current Page ({paginatedLeads.length})</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    exportLeadsToPDF(filteredLeads, `All Filtered Leads Report`);
+                    setShowExportMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-900 flex items-center justify-between transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    <span>All Leads ({filteredLeads.length})</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">PDF</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           <Link
             href="/import"
             className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-2.5 rounded-xl border border-emerald-200 transition-all"
           >
             <Upload className="w-3.5 h-3.5" />
-            <span>Excel Import</span>
+            <span className="hidden sm:inline">Excel Import</span>
           </Link>
           <Link
             href="/leads/new"
@@ -194,7 +313,7 @@ export default function LeadsListPage() {
         <>
           {/* MOBILE VIEW: Card List */}
           <div className="block md:hidden space-y-3">
-            {filteredLeads.map(lead => (
+            {paginatedLeads.map(lead => (
               <LeadCard
                 key={lead.id}
                 lead={lead}
@@ -220,7 +339,7 @@ export default function LeadsListPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-                {filteredLeads.map(lead => {
+                {paginatedLeads.map(lead => {
                   const cleanPhone = lead.phone.replace(/\D/g, '');
                   const waPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
                   const whatsappUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(
@@ -308,6 +427,104 @@ export default function LeadsListPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls Bar */}
+          {filteredLeads.length > 0 && (
+            <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex flex-wrap items-center gap-2 text-slate-600 font-medium">
+                <span>
+                  Showing <strong className="text-slate-900">{startIndex + 1}</strong> to{' '}
+                  <strong className="text-slate-900">{endIndex}</strong> of{' '}
+                  <strong className="text-slate-900">{totalItems}</strong> leads
+                </span>
+                <span className="text-slate-300">|</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-500">Per page:</span>
+                  <select
+                    value={pageSize}
+                    onChange={e => setPageSize(Number(e.target.value))}
+                    className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={safeCurrentPage === 1}
+                  onClick={() => setCurrentPage(1)}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 transition-colors"
+                  title="First Page"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  disabled={safeCurrentPage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 transition-colors"
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                {/* Page number buttons */}
+                <div className="flex items-center gap-1 px-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(
+                      p =>
+                        p === 1 ||
+                        p === totalPages ||
+                        Math.abs(p - safeCurrentPage) <= 1
+                    )
+                    .map((p, idx, arr) => {
+                      const prevPage = arr[idx - 1];
+                      const hasGap = prevPage && p - prevPage > 1;
+                      return (
+                        <React.Fragment key={p}>
+                          {hasGap && <span className="text-slate-400 px-0.5">...</span>}
+                          <button
+                            type="button"
+                            onClick={() => setCurrentPage(p)}
+                            className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
+                              safeCurrentPage === p
+                                ? 'bg-blue-600 text-white shadow-sm'
+                                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        </React.Fragment>
+                      );
+                    })}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={safeCurrentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 transition-colors"
+                  title="Next Page"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  disabled={safeCurrentPage === totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 transition-colors"
+                  title="Last Page"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
