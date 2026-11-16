@@ -80,13 +80,22 @@ export default function LeadCard({
             </h3>
             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 flex-shrink-0" />
           </Link>
-          <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-700">
+          <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-700 flex-wrap">
             <span className="font-semibold tracking-wide">{lead.phone}</span>
             {lead.source && (
               <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-medium">
                 {lead.source}
               </span>
             )}
+            {lead.assigned_profile?.full_name ? (
+              <span className="px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold">
+                👤 {lead.assigned_profile.full_name}
+              </span>
+            ) : lead.assigned_to ? (
+              <span className="px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold">
+                👤 Assigned
+              </span>
+            ) : null}
           </div>
         </div>
 

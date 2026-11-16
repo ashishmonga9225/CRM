@@ -14,6 +14,7 @@ import {
   Flame,
   UploadCloud,
   Layers,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
@@ -32,6 +33,7 @@ export default function Navigation() {
   const isImport = pathname.startsWith('/import');
   const isVisits = pathname.startsWith('/visits');
   const isProjects = pathname.startsWith('/projects');
+  const isTeam = pathname.startsWith('/team');
   const isMore = pathname.startsWith('/more');
   const isSettings = pathname.startsWith('/settings');
 
@@ -136,6 +138,25 @@ export default function Navigation() {
             <Building2 className="w-5 h-5" />
             <span>Projects</span>
           </Link>
+
+          {user?.role === 'admin' && (
+            <Link
+              href="/team"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
+                isTeam
+                  ? 'bg-purple-600/20 text-purple-400 font-semibold'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <ShieldCheck className="w-5 h-5 text-purple-400" />
+              <div className="flex-1 flex items-center justify-between">
+                <span>Team Logins</span>
+                <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-bold">
+                  Admin
+                </span>
+              </div>
+            </Link>
+          )}
 
           <Link
             href="/more"

@@ -1,5 +1,6 @@
-import { Lead, FollowUp, SiteVisit, Project, LeadStatus, Temperature, Channel } from './types';
+import { Lead, FollowUp, SiteVisit, Project, LeadStatus, Temperature, Channel, Profile } from './types';
 import { supabase, isSupabaseConfigured } from './supabase';
+import type { UserProfile } from './auth';
 
 const TODAY_ISO = new Date().toISOString();
 const YESTERDAY_ISO = new Date(Date.now() - 86400000).toISOString();
@@ -284,12 +285,19 @@ export async function createProject(project: Partial<Project>): Promise<Project>
   return newProj;
 }
 
-export async function fetchLeads(): Promise<Lead[]> {
+export async function fetchLeads(user?: UserProfile | null): Promise<Lead[]> {
   if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('leads')
-      .select('*, project:projects(*), follow_ups(id, note, outcome, next_follow_up_at, channel, contacted_at, created_at)')
+      .select('*, project:projects(*), assigned_profile:profiles!leads_assigned_to_fkey(id, full_name, role), follow_ups(id, note, outcome, next_follow_up_at, channel, contacted_at, created_at)')
       .order('created_at', { ascending: false });
+
+    // Strict Data Isolation: Executive child login only sees their assigned or created leads
+    if (user && user.role === 'executive') {
+      query = query.or(`assigned_to.eq.${user.id},created_by.eq.${user.id}`);
+    }
+
+    const { data, error } = await query;
 
     if (!error && data) {
       return data.map((l: any) => {
@@ -308,7 +316,13 @@ export async function fetchLeads(): Promise<Lead[]> {
   const local = getLocal<Lead[]>(LOCAL_STORAGE_KEY_LEADS, INITIAL_LEADS);
   const projects = await fetchProjects();
   const allFollowUps = getLocal<FollowUp[]>(LOCAL_STORAGE_KEY_FOLLOWUPS, INITIAL_FOLLOWUPS);
-  return local.map(lead => {
+
+  let result = local;
+  if (user && user.role === 'executive') {
+    result = local.filter(l => l.assigned_to === user.id || l.created_by === user.id);
+  }
+
+  return result.map(lead => {
     const leadFus = allFollowUps
       .filter(f => f.lead_id === lead.id)
       .sort(
@@ -326,8 +340,8 @@ export async function fetchLeads(): Promise<Lead[]> {
   });
 }
 
-export async function fetchLeadById(id: string): Promise<Lead | null> {
-  const leads = await fetchLeads();
+export async function fetchLeadById(id: string, user?: UserProfile | null): Promise<Lead | null> {
+  const leads = await fetchLeads(user);
   return leads.find(l => l.id === id) || null;
 }
 
@@ -349,7 +363,7 @@ export async function checkDuplicatePhone(phone: string, currentLeadId?: string)
   );
 }
 
-export async function saveLead(leadData: Partial<Lead>): Promise<Lead> {
+export async function saveLead(leadData: Partial<Lead>, currentUser?: UserProfile | null): Promise<Lead> {
   // Clean phone number to digits only (matches database check)
   const phoneClean = leadData.phone ? leadData.phone.replace(/\D/g, '') : undefined;
 
@@ -359,6 +373,7 @@ export async function saveLead(leadData: Partial<Lead>): Promise<Lead> {
       const payload: any = { ...leadData };
       if (phoneClean) payload.phone = phoneClean;
       delete payload.project;
+      delete payload.assigned_profile;
       delete payload.last_follow_up;
       delete payload.budget_text;
 
@@ -366,12 +381,12 @@ export async function saveLead(leadData: Partial<Lead>): Promise<Lead> {
         .from('leads')
         .update(payload)
         .eq('id', leadData.id)
-        .select()
+        .select('*, project:projects(*), assigned_profile:profiles!leads_assigned_to_fkey(id, full_name, role)')
         .single();
       if (!error && data) return data;
     }
 
-    const leads = await fetchLeads();
+    const leads = await fetchLeads(currentUser);
     const updated = leads.map(l =>
       l.id === leadData.id
         ? { ...l, ...leadData, updated_at: new Date().toISOString() }
@@ -396,10 +411,16 @@ export async function saveLead(leadData: Partial<Lead>): Promise<Lead> {
       temperature: leadData.temperature || 'warm',
       next_follow_up_at: leadData.next_follow_up_at || new Date().toISOString(),
       lost_reason: leadData.lost_reason || null,
+      assigned_to: leadData.assigned_to || (currentUser ? currentUser.id : null),
+      created_by: leadData.created_by || (currentUser ? currentUser.id : null),
     };
 
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('leads').insert(payload).select().single();
+      const { data, error } = await supabase
+        .from('leads')
+        .insert(payload)
+        .select('*, project:projects(*), assigned_profile:profiles!leads_assigned_to_fkey(id, full_name, role)')
+        .single();
       if (!error && data) return data;
       if (error) console.error('Supabase saveLead error:', error);
     }
@@ -503,24 +524,163 @@ export async function fetchFollowUpsForLead(leadId: string): Promise<FollowUp[]>
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
-export async function fetchSiteVisits(): Promise<SiteVisit[]> {
+export async function fetchSiteVisits(user?: UserProfile | null): Promise<SiteVisit[]> {
   if (isSupabaseConfigured && supabase) {
     const { data } = await supabase
       .from('site_visits')
       .select('*, lead:leads(*), project:projects(*)')
       .order('visit_at', { ascending: true });
-    if (data) return data;
+
+    if (data) {
+      if (user && user.role === 'executive') {
+        // Child user only sees site visits for leads assigned to them or created by them
+        return data.filter(
+          (v: any) =>
+            v.lead?.assigned_to === user.id ||
+            v.lead?.created_by === user.id ||
+            v.created_by === user.id
+        );
+      }
+      return data;
+    }
   }
 
   const visits = getLocal<SiteVisit[]>(LOCAL_STORAGE_KEY_VISITS, INITIAL_VISITS);
-  const leads = await fetchLeads();
+  const leads = await fetchLeads(user);
   const projects = await fetchProjects();
 
-  return visits.map(v => ({
+  const mapped = visits.map(v => ({
     ...v,
     lead: leads.find(l => l.id === v.lead_id),
     project: projects.find(p => p.id === v.project_id),
   }));
+
+  if (user && user.role === 'executive') {
+    return mapped.filter(v => Boolean(v.lead));
+  }
+
+  return mapped;
+}
+
+export async function fetchTeamMembers(): Promise<Profile[]> {
+  try {
+    const res = await fetch('/api/team');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.members) return data.members;
+    }
+  } catch (e) {
+    console.warn('API /api/team failed, falling back to direct profiles query', e);
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('full_name', { ascending: true });
+    if (data) return data;
+  }
+
+  return [];
+}
+
+export async function assignLead(
+  leadId: string,
+  assignedToUserId: string | null,
+  assignedToName?: string,
+  assignedByName?: string
+): Promise<boolean> {
+  if (isSupabaseConfigured && supabase) {
+    const { error } = await supabase
+      .from('leads')
+      .update({
+        assigned_to: assignedToUserId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', leadId);
+
+    if (error) {
+      console.error('Error assigning lead:', error);
+      return false;
+    }
+  }
+
+  // Also update local storage if fallback
+  const leads = await fetchLeads();
+  const updated = leads.map(l =>
+    l.id === leadId
+      ? { ...l, assigned_to: assignedToUserId, updated_at: new Date().toISOString() }
+      : l
+  );
+  setLocal(LOCAL_STORAGE_KEY_LEADS, updated);
+
+  // Also log a follow-up/audit note about assignment
+  const targetName = assignedToName || 'Team Member';
+  const assigner = assignedByName || 'Admin';
+  const noteMessage = assignedToUserId
+    ? `Assigned lead to ${targetName} by ${assigner}`
+    : `Unassigned lead by ${assigner}`;
+
+  await addFollowUp(leadId, {
+    channel: 'other',
+    note: noteMessage,
+    outcome: 'Lead Assigned',
+  });
+
+  return true;
+}
+
+export async function assignBulkLeads(
+  leadIds: string[],
+  assignedToUserId: string | null,
+  assignedToName?: string,
+  assignedByName?: string
+): Promise<{ success: boolean; count: number }> {
+  if (!leadIds || leadIds.length === 0) return { success: true, count: 0 };
+
+  if (isSupabaseConfigured && supabase) {
+    const { error } = await supabase
+      .from('leads')
+      .update({
+        assigned_to: assignedToUserId,
+        updated_at: new Date().toISOString(),
+      })
+      .in('id', leadIds);
+
+    if (error) {
+      console.error('Error bulk assigning leads:', error);
+      return { success: false, count: 0 };
+    }
+  }
+
+  // Update local storage
+  const leads = await fetchLeads();
+  const updated = leads.map(l =>
+    leadIds.includes(l.id)
+      ? { ...l, assigned_to: assignedToUserId, updated_at: new Date().toISOString() }
+      : l
+  );
+  setLocal(LOCAL_STORAGE_KEY_LEADS, updated);
+
+  // Add notes for leads asynchronously
+  const targetName = assignedToName || 'Team Member';
+  const assigner = assignedByName || 'Admin';
+  const noteMessage = assignedToUserId
+    ? `Assigned lead to ${targetName} by ${assigner}`
+    : `Unassigned lead by ${assigner}`;
+
+  // Log for each lead
+  Promise.all(
+    leadIds.map(id =>
+      addFollowUp(id, {
+        channel: 'other',
+        note: noteMessage,
+        outcome: 'Lead Assigned',
+      }).catch(err => console.error('Failed to log assignment for lead', id, err))
+    )
+  );
+
+  return { success: true, count: leadIds.length };
 }
 
 export async function scheduleSiteVisit(visit: {

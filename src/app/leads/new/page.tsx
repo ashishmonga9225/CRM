@@ -12,13 +12,15 @@ import {
   Phone,
   User,
 } from 'lucide-react';
-import { Project, Temperature, Lead } from '@/lib/types';
-import { fetchProjects, checkDuplicatePhone, saveLead } from '@/lib/storage';
+import { Project, Temperature, Lead, Profile } from '@/lib/types';
+import { fetchProjects, checkDuplicatePhone, saveLead, fetchTeamMembers } from '@/lib/storage';
+import { useAuth } from '@/lib/auth';
 
 const SOURCES = ['MagicBricks', '99acres', 'Meta Ads', 'Referral', 'Walk-in', 'Website', 'Direct Call'];
 
 export default function NewLeadPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Form State
@@ -28,6 +30,8 @@ export default function NewLeadPage() {
   const [source, setSource] = useState('Meta Ads');
   const [requirement, setRequirement] = useState('');
   const [projectId, setProjectId] = useState('');
+  const [assignedTo, setAssignedTo] = useState('');
+  const [teamMembers, setTeamMembers] = useState<Profile[]>([]);
   const [nextFollowUpDate, setNextFollowUpDate] = useState(
     new Date().toISOString().split('T')[0]
   );
@@ -45,7 +49,10 @@ export default function NewLeadPage() {
       nameInputRef.current.focus();
     }
     fetchProjects().then(setProjects);
-  }, []);
+    if (user?.role === 'admin') {
+      fetchTeamMembers().then(setTeamMembers);
+    }
+  }, [user]);
 
   // Live duplicate warning while typing
   useEffect(() => {
@@ -69,16 +76,20 @@ export default function NewLeadPage() {
 
     setIsSubmitting(true);
     try {
-      const created = await saveLead({
-        name: name.trim(),
-        phone: cleanDigits,
-        temperature,
-        source,
-        requirement: requirement.trim(),
-        project_id: projectId || undefined,
-        next_follow_up_at: new Date(`${nextFollowUpDate}T10:00:00Z`).toISOString(),
-        status: 'new',
-      });
+      const created = await saveLead(
+        {
+          name: name.trim(),
+          phone: cleanDigits,
+          temperature,
+          source,
+          requirement: requirement.trim(),
+          project_id: projectId || undefined,
+          next_follow_up_at: new Date(`${nextFollowUpDate}T10:00:00Z`).toISOString(),
+          status: 'new',
+          assigned_to: assignedTo || (user ? user.id : undefined),
+        },
+        user
+      );
       router.push(`/leads/${created.id}`);
     } catch (err) {
       console.error(err);
@@ -287,6 +298,30 @@ export default function NewLeadPage() {
               className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900"
             />
           </div>
+
+          {/* Super Admin Lead Assignment Dropdown */}
+          {user?.role === 'admin' && teamMembers.length > 0 && (
+            <div>
+              <label className="text-xs font-bold text-purple-900 mb-1 block">
+                Assign to Team Member
+              </label>
+              <select
+                value={assignedTo}
+                onChange={e => setAssignedTo(e.target.value)}
+                className="w-full px-3 py-2 border border-purple-200 bg-purple-50/50 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-400"
+              >
+                <option value="">Assigned to You (Super Admin)</option>
+                {teamMembers.map(tm => (
+                  <option key={tm.id} value={tm.id}>
+                    {tm.full_name} ({tm.role === 'admin' ? 'Super Admin' : 'Child Login'})
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-slate-500 mt-1">
+                Select an executive to assign this lead to immediately upon creation.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* STICKY SAVE BUTTON */}

@@ -134,6 +134,34 @@ export default function MorePage() {
           </div>
           <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600" />
         </Link>
+
+        {/* Super Admin Team & Child Logins Card */}
+        {user?.role === 'admin' && (
+          <Link
+            href="/team"
+            className="sm:col-span-2 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl p-4 border border-purple-200 shadow-sm flex items-center justify-between hover:border-purple-400 transition-colors group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-sm text-purple-950 group-hover:text-purple-700 transition-colors">
+                    Team & Child Logins
+                  </h3>
+                  <span className="text-[10px] bg-purple-200/80 text-purple-800 font-extrabold px-2 py-0.5 rounded-full uppercase">
+                    Super Admin
+                  </span>
+                </div>
+                <p className="text-xs text-purple-800/80 mt-0.5">
+                  Create child logins for executives, set passwords, and manage lead assignments
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-purple-400 group-hover:text-purple-700" />
+          </Link>
+        )}
       </div>
 
       {/* Profile & Settings Banner */}

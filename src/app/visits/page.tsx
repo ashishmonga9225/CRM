@@ -11,8 +11,10 @@ import {
 } from 'lucide-react';
 import { SiteVisit, SiteVisitStatus } from '@/lib/types';
 import { fetchSiteVisits, updateSiteVisitOutcome } from '@/lib/storage';
+import { useAuth } from '@/lib/auth';
 
 export default function SiteVisitsPage() {
+  const { user } = useAuth();
   const [visits, setVisits] = useState<SiteVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
@@ -23,14 +25,14 @@ export default function SiteVisitsPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const data = await fetchSiteVisits();
+    const data = await fetchSiteVisits(user);
     setVisits(data);
     setLoading(false);
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user]);
 
   const now = new Date().toISOString();
   const upcomingVisits = visits.filter(

@@ -242,9 +242,43 @@ create policy "projects: active users"
   on public.projects for all to authenticated
   using (public.is_crm_user()) with check (public.is_crm_user());
 
-create policy "leads: active users"
-  on public.leads for all to authenticated
-  using (public.is_crm_user()) with check (public.is_crm_user());
+-- Leads: Super Admins can see & update all leads.
+-- Child logins (executives) can only see & update their assigned or created leads.
+create policy "leads: select"
+  on public.leads for select to authenticated
+  using (
+    public.is_crm_admin()
+    or (
+      public.is_crm_user()
+      and (assigned_to = (select auth.uid()) or created_by = (select auth.uid()))
+    )
+  );
+
+create policy "leads: insert"
+  on public.leads for insert to authenticated
+  using (public.is_crm_user())
+  with check (public.is_crm_user());
+
+create policy "leads: update"
+  on public.leads for update to authenticated
+  using (
+    public.is_crm_admin()
+    or (
+      public.is_crm_user()
+      and (assigned_to = (select auth.uid()) or created_by = (select auth.uid()))
+    )
+  )
+  with check (
+    public.is_crm_admin()
+    or (
+      public.is_crm_user()
+      and (assigned_to = (select auth.uid()) or created_by = (select auth.uid()))
+    )
+  );
+
+create policy "leads: delete"
+  on public.leads for delete to authenticated
+  using (public.is_crm_admin());
 
 create policy "follow_ups: active users"
   on public.follow_ups for all to authenticated

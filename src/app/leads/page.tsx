@@ -18,10 +18,16 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Check,
+  ShieldCheck,
+  Users,
+  CheckSquare,
+  Square,
+  UserCheck,
 } from 'lucide-react';
-import { Lead, Temperature, LeadStatus, Project } from '@/lib/types';
-import { fetchLeads, fetchProjects } from '@/lib/storage';
+import { Lead, Temperature, LeadStatus, Project, Profile } from '@/lib/types';
+import { fetchLeads, fetchProjects, fetchTeamMembers, assignBulkLeads } from '@/lib/storage';
 import { exportLeadsToExcel, exportLeadsToPDF } from '@/lib/exportImport';
+import { useAuth } from '@/lib/auth';
 import LogFollowUpModal from '@/components/LogFollowUpModal';
 import LeadCard from '@/components/LeadCard';
 import WhatsAppModal from '@/components/WhatsAppModal';
@@ -39,8 +45,10 @@ const STATUSES: { value: LeadStatus | 'all'; label: string }[] = [
 ];
 
 export default function LeadsListPage() {
+  const { user } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [teamMembers, setTeamMembers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -48,6 +56,13 @@ export default function LeadsListPage() {
   const [selectedStatus, setSelectedStatus] = useState<LeadStatus | 'all'>('all');
   const [selectedTemp, setSelectedTemp] = useState<Temperature | 'all'>('all');
   const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [selectedAgent, setSelectedAgent] = useState<string>('all');
+
+  // Bulk Assignment (Super Admin)
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [bulkAssignTarget, setBulkAssignTarget] = useState<string>('');
+  const [bulkAssigning, setBulkAssigning] = useState(false);
+  const [assignmentNotice, setAssignmentNotice] = useState('');
 
   // Pagination & Export
   const [currentPage, setCurrentPage] = useState(1);
@@ -61,15 +76,30 @@ export default function LeadsListPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [leadsData, projData] = await Promise.all([fetchLeads(), fetchProjects()]);
+    const [leadsData, projData, teamData] = await Promise.all([
+      fetchLeads(user),
+      fetchProjects(),
+      user?.role === 'admin' ? fetchTeamMembers() : Promise.resolve([]),
+    ]);
     setLeads(leadsData);
     setProjects(projData);
+    if (teamData) setTeamMembers(teamData);
     setLoading(false);
   };
 
   useEffect(() => {
-    loadData();
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const agentParam = params.get('agent');
+      if (agentParam) {
+        setSelectedAgent(agentParam);
+      }
+    }
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [user]);
 
   const filteredLeads = leads.filter(l => {
     const q = search.toLowerCase().trim();
@@ -83,13 +113,47 @@ export default function LeadsListPage() {
     const matchesTemp = selectedTemp === 'all' || l.temperature === selectedTemp;
     const matchesProject = selectedProject === 'all' || l.project_id === selectedProject;
 
-    return matchesSearch && matchesStatus && matchesTemp && matchesProject;
+    let matchesAgent = true;
+    if (user?.role === 'admin' && selectedAgent !== 'all') {
+      if (selectedAgent === 'unassigned') {
+        matchesAgent = !l.assigned_to;
+      } else {
+        matchesAgent = l.assigned_to === selectedAgent;
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesTemp && matchesProject && matchesAgent;
   });
+
+  const handleBulkAssign = async () => {
+    if (!bulkAssignTarget || selectedLeadIds.length === 0) return;
+    setBulkAssigning(true);
+    const targetMember = teamMembers.find(m => m.id === bulkAssignTarget);
+    const targetName = targetMember?.full_name || 'Team Member';
+
+    const result = await assignBulkLeads(
+      selectedLeadIds,
+      bulkAssignTarget === 'unassign' ? null : bulkAssignTarget,
+      targetName,
+      user?.name || 'Super Admin'
+    );
+
+    if (result.success) {
+      setAssignmentNotice(
+        `Successfully assigned ${result.count} leads to ${targetName}!`
+      );
+      setSelectedLeadIds([]);
+      setBulkAssignTarget('');
+      await loadData();
+      setTimeout(() => setAssignmentNotice(''), 3500);
+    }
+    setBulkAssigning(false);
+  };
 
   // Reset to page 1 whenever filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, selectedStatus, selectedTemp, selectedProject, pageSize]);
+  }, [search, selectedStatus, selectedTemp, selectedProject, selectedAgent, pageSize]);
 
   const totalItems = filteredLeads.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -287,7 +351,106 @@ export default function LeadsListPage() {
             </button>
           ))}
         </div>
+
+        {/* Agent Filter (Super Admin only) */}
+        {user?.role === 'admin' && teamMembers.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+            <span className="text-[11px] font-bold text-purple-700 mr-1 flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Agent:</span>
+            </span>
+            <button
+              onClick={() => setSelectedAgent('all')}
+              className={`px-3 py-1 rounded-full font-bold whitespace-nowrap transition-all ${
+                selectedAgent === 'all'
+                  ? 'bg-purple-700 text-white shadow-sm'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              All Agents ({leads.length})
+            </button>
+            <button
+              onClick={() => setSelectedAgent('unassigned')}
+              className={`px-3 py-1 rounded-full font-bold whitespace-nowrap transition-all ${
+                selectedAgent === 'unassigned'
+                  ? 'bg-purple-700 text-white shadow-sm'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              Unassigned ({leads.filter(l => !l.assigned_to).length})
+            </button>
+            {teamMembers.map(tm => {
+              const count = leads.filter(l => l.assigned_to === tm.id).length;
+              return (
+                <button
+                  key={tm.id}
+                  onClick={() => setSelectedAgent(tm.id)}
+                  className={`px-3 py-1 rounded-full font-bold whitespace-nowrap transition-all ${
+                    selectedAgent === tm.id
+                      ? 'bg-purple-700 text-white shadow-sm'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {tm.full_name} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      {/* BULK ASSIGNMENT BAR FOR SUPER ADMIN */}
+      {user?.role === 'admin' && selectedLeadIds.length > 0 && (
+        <div className="bg-purple-900 text-white p-3.5 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-purple-500/40 text-purple-200 font-black text-xs flex items-center justify-center">
+              {selectedLeadIds.length}
+            </span>
+            <span className="text-xs font-bold">
+              {selectedLeadIds.length} {selectedLeadIds.length === 1 ? 'lead' : 'leads'} selected for assignment
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <select
+              value={bulkAssignTarget}
+              onChange={e => setBulkAssignTarget(e.target.value)}
+              className="bg-purple-800 border border-purple-600 text-white text-xs font-semibold rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-400 flex-1 sm:flex-initial"
+            >
+              <option value="">-- Choose Agent to Assign --</option>
+              {teamMembers.map(tm => (
+                <option key={tm.id} value={tm.id}>
+                  {tm.full_name} ({tm.role === 'admin' ? 'Super Admin' : 'Child Login'})
+                </option>
+              ))}
+              <option value="unassign">Unassign / Clear Assignment</option>
+            </select>
+
+            <button
+              onClick={handleBulkAssign}
+              disabled={!bulkAssignTarget || bulkAssigning}
+              className="bg-white hover:bg-purple-50 disabled:opacity-50 text-purple-950 text-xs font-bold px-4 py-1.5 rounded-xl shadow transition-all whitespace-nowrap"
+            >
+              {bulkAssigning ? 'Assigning...' : 'Assign Leads'}
+            </button>
+
+            <button
+              onClick={() => setSelectedLeadIds([])}
+              className="text-xs text-purple-300 hover:text-white px-2 py-1 font-semibold whitespace-nowrap"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Success Notification */}
+      {assignmentNotice && (
+        <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold p-3 rounded-2xl shadow-sm flex items-center gap-2">
+          <Check className="w-4 h-4 text-emerald-600" />
+          <span>{assignmentNotice}</span>
+        </div>
+      )}
 
       {/* Results View */}
       {loading ? (
@@ -329,8 +492,28 @@ export default function LeadsListPage() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
                 <tr>
+                  {user?.role === 'admin' && (
+                    <th className="py-3.5 px-3 w-8">
+                      <input
+                        type="checkbox"
+                        checked={paginatedLeads.length > 0 && paginatedLeads.every(l => selectedLeadIds.includes(l.id))}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            const newIds = Array.from(new Set([...selectedLeadIds, ...paginatedLeads.map(l => l.id)]));
+                            setSelectedLeadIds(newIds);
+                          } else {
+                            const pageIds = new Set(paginatedLeads.map(l => l.id));
+                            setSelectedLeadIds(selectedLeadIds.filter(id => !pageIds.has(id)));
+                          }
+                        }}
+                        className="rounded border-slate-300 text-purple-600 focus:ring-purple-500 w-4 h-4 cursor-pointer"
+                        title="Select all on this page"
+                      />
+                    </th>
+                  )}
                   <th className="py-3.5 px-4">Lead</th>
                   <th className="py-3.5 px-4">Phone</th>
+                  {user?.role === 'admin' && <th className="py-3.5 px-4">Assigned Agent</th>}
                   <th className="py-3.5 px-4">Temperature</th>
                   <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-4">Project</th>
@@ -342,12 +525,31 @@ export default function LeadsListPage() {
                 {paginatedLeads.map(lead => {
                   const cleanPhone = lead.phone.replace(/\D/g, '');
                   const waPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
-                  const whatsappUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(
-                    `Hello ${lead.name}, regarding your inquiry for ${lead.project?.name || 'property'}.`
-                  )}`;
+                  const isSelected = selectedLeadIds.includes(lead.id);
 
                   return (
-                    <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr
+                      key={lead.id}
+                      className={`transition-colors ${
+                        isSelected ? 'bg-purple-50/70 hover:bg-purple-50' : 'hover:bg-slate-50/80'
+                      }`}
+                    >
+                      {user?.role === 'admin' && (
+                        <td className="py-3 px-3 w-8">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={e => {
+                              if (e.target.checked) {
+                                setSelectedLeadIds(prev => [...prev, lead.id]);
+                              } else {
+                                setSelectedLeadIds(prev => prev.filter(id => id !== lead.id));
+                              }
+                            }}
+                            className="rounded border-slate-300 text-purple-600 focus:ring-purple-500 w-4 h-4 cursor-pointer"
+                          />
+                        </td>
+                      )}
                       <td className="py-3 px-4 font-bold text-slate-900">
                         <Link href={`/leads/${lead.id}`} className="hover:text-blue-600">
                           {lead.name}
@@ -359,6 +561,23 @@ export default function LeadsListPage() {
                         )}
                       </td>
                       <td className="py-3 px-4 font-mono font-semibold">{lead.phone}</td>
+                      {user?.role === 'admin' && (
+                        <td className="py-3 px-4">
+                          {lead.assigned_profile?.full_name ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                              👤 {lead.assigned_profile.full_name}
+                            </span>
+                          ) : lead.assigned_to ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                              👤 Assigned
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500">
+                              Unassigned
+                            </span>
+                          )}
+                        </td>
+                      )}
                       <td className="py-3 px-4">
                         <span
                           className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${

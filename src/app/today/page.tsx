@@ -9,9 +9,12 @@ import {
   Plus,
   RefreshCw,
   Sparkles,
+  ShieldCheck,
+  User,
 } from 'lucide-react';
-import { Lead } from '@/lib/types';
-import { fetchLeads } from '@/lib/storage';
+import { Lead, Profile } from '@/lib/types';
+import { fetchLeads, fetchTeamMembers } from '@/lib/storage';
+import { useAuth } from '@/lib/auth';
 import LeadCard from '@/components/LeadCard';
 import LogFollowUpModal from '@/components/LogFollowUpModal';
 import ScheduleVisitModal from '@/components/ScheduleVisitModal';
@@ -19,7 +22,10 @@ import WhatsAppModal from '@/components/WhatsAppModal';
 import LeadNotesModal from '@/components/LeadNotesModal';
 
 export default function TodayPage() {
+  const { user } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [teamMembers, setTeamMembers] = useState<Profile[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'overdue' | 'due' | 'upcoming'>('all');
   
@@ -30,20 +36,29 @@ export default function TodayPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const data = await fetchLeads();
+    const [data, team] = await Promise.all([
+      fetchLeads(user),
+      user?.role === 'admin' ? fetchTeamMembers() : Promise.resolve([]),
+    ]);
     setLeads(data);
+    if (team) setTeamMembers(team);
     setLoading(false);
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user]);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  const activeFollowUpLeads = leads.filter(
-    l => l.status !== 'booked' && l.status !== 'lost'
-  );
+  const activeFollowUpLeads = leads.filter(l => {
+    if (l.status === 'booked' || l.status === 'lost') return false;
+    if (user?.role === 'admin' && selectedAgent !== 'all') {
+      if (selectedAgent === 'unassigned') return !l.assigned_to;
+      return l.assigned_to === selectedAgent;
+    }
+    return true;
+  });
 
   const overdueLeads = activeFollowUpLeads.filter(l => {
     if (!l.next_follow_up_at) return false;
@@ -143,6 +158,49 @@ export default function TodayPage() {
           <p className="text-2xl font-black text-emerald-800">{upcomingLeads.length}</p>
         </button>
       </div>
+
+      {/* Agent Filter (Super Admin only) */}
+      {user?.role === 'admin' && teamMembers.length > 0 && (
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-bold scrollbar-none">
+          <span className="text-[11px] font-bold text-purple-700 mr-1 flex items-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Agent:</span>
+          </span>
+          <button
+            onClick={() => setSelectedAgent('all')}
+            className={`px-3 py-1 rounded-full whitespace-nowrap transition-all ${
+              selectedAgent === 'all'
+                ? 'bg-purple-700 text-white shadow-sm'
+                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            All Agents
+          </button>
+          <button
+            onClick={() => setSelectedAgent('unassigned')}
+            className={`px-3 py-1 rounded-full whitespace-nowrap transition-all ${
+              selectedAgent === 'unassigned'
+                ? 'bg-purple-700 text-white shadow-sm'
+                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            Unassigned
+          </button>
+          {teamMembers.map(tm => (
+            <button
+              key={tm.id}
+              onClick={() => setSelectedAgent(tm.id)}
+              className={`px-3 py-1 rounded-full whitespace-nowrap transition-all ${
+                selectedAgent === tm.id
+                  ? 'bg-purple-700 text-white shadow-sm'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              {tm.full_name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Filter Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-bold scrollbar-none">

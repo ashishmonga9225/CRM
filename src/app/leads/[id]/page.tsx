@@ -13,15 +13,21 @@ import {
   CheckCircle2,
   FileText,
   Plus,
+  User,
+  ShieldCheck,
+  Check,
 } from 'lucide-react';
-import { Lead, FollowUp, SiteVisit, LeadStatus } from '@/lib/types';
+import { Lead, FollowUp, SiteVisit, LeadStatus, Profile } from '@/lib/types';
 import {
   fetchLeadById,
   fetchFollowUpsForLead,
   fetchSiteVisits,
   updateLeadStatus,
   addFollowUp,
+  fetchTeamMembers,
+  assignLead,
 } from '@/lib/storage';
+import { useAuth } from '@/lib/auth';
 import LogFollowUpModal from '@/components/LogFollowUpModal';
 import ScheduleVisitModal from '@/components/ScheduleVisitModal';
 import WhatsAppModal from '@/components/WhatsAppModal';
@@ -41,11 +47,17 @@ export default function LeadDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string;
+  const { user } = useAuth();
 
   const [lead, setLead] = useState<Lead | null>(null);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [visits, setVisits] = useState<SiteVisit[]>([]);
+  const [teamMembers, setTeamMembers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Assignment states
+  const [assigning, setAssigning] = useState(false);
+  const [assignSuccess, setAssignSuccess] = useState('');
 
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [showVisitModal, setShowVisitModal] = useState(false);
@@ -62,21 +74,61 @@ export default function LeadDetailPage() {
   const loadData = async () => {
     if (!id) return;
     setLoading(true);
-    const [leadData, fuData, allVisits] = await Promise.all([
-      fetchLeadById(id),
+    const [leadData, fuData, allVisits, team] = await Promise.all([
+      fetchLeadById(id, user),
       fetchFollowUpsForLead(id),
-      fetchSiteVisits(),
+      fetchSiteVisits(user),
+      user?.role === 'admin' ? fetchTeamMembers() : Promise.resolve([]),
     ]);
 
     setLead(leadData);
     setFollowUps(fuData);
     setVisits(allVisits.filter(v => v.lead_id === id));
+    if (team) setTeamMembers(team);
     setLoading(false);
   };
 
   useEffect(() => {
     loadData();
-  }, [id]);
+  }, [id, user]);
+
+  const handleAssignAgent = async (targetUserId: string) => {
+    if (!lead) return;
+    setAssigning(true);
+    const targetMember = teamMembers.find(m => m.id === targetUserId);
+    const targetName = targetMember?.full_name || 'Team Member';
+    const isUnassign = targetUserId === 'unassign';
+
+    const success = await assignLead(
+      lead.id,
+      isUnassign ? null : targetUserId,
+      targetName,
+      user?.name || 'Super Admin'
+    );
+
+    if (success) {
+      setAssignSuccess(
+        isUnassign
+          ? 'Lead unassigned'
+          : `Assigned to ${targetName}!`
+      );
+      setLead(prev =>
+        prev
+          ? {
+              ...prev,
+              assigned_to: isUnassign ? null : targetUserId,
+              assigned_profile: isUnassign
+                ? null
+                : { id: targetUserId, full_name: targetName, role: targetMember?.role },
+            }
+          : prev
+      );
+      const updatedFus = await fetchFollowUpsForLead(lead.id);
+      setFollowUps(updatedFus);
+      setTimeout(() => setAssignSuccess(''), 3000);
+    }
+    setAssigning(false);
+  };
 
   if (loading) {
     return (
@@ -231,6 +283,61 @@ export default function LeadDetailPage() {
               <FileText className="w-4 h-4 text-amber-600" />
               <span>Notes ({followUps.length})</span>
             </button>
+          </div>
+
+          {/* Lead Assignment Box */}
+          <div className="bg-purple-50/70 border border-purple-200 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-xs shadow-sm flex-shrink-0">
+                <User className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-purple-700">
+                  Assigned Team Member
+                </p>
+                <p className="text-xs font-bold text-slate-800">
+                  {lead.assigned_profile?.full_name ? (
+                    <span className="text-purple-900 font-extrabold">
+                      👤 {lead.assigned_profile.full_name}{' '}
+                      {lead.assigned_to === user?.id ? '(You)' : ''}
+                    </span>
+                  ) : lead.assigned_to ? (
+                    <span className="text-purple-900 font-extrabold">👤 Assigned</span>
+                  ) : (
+                    <span className="text-slate-500 font-medium">Unassigned (Only Super Admin sees this lead)</span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {user?.role === 'admin' ? (
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={lead.assigned_to || ''}
+                  onChange={e => handleAssignAgent(e.target.value || 'unassign')}
+                  disabled={assigning}
+                  className="text-xs font-bold px-3 py-2 rounded-xl border border-purple-300 bg-white text-purple-950 focus:outline-none focus:ring-2 focus:ring-purple-400 shadow-sm"
+                >
+                  <option value="">-- Assign to Agent --</option>
+                  {teamMembers.map(tm => (
+                    <option key={tm.id} value={tm.id}>
+                      {tm.full_name} ({tm.role === 'admin' ? 'Super Admin' : 'Child Login'})
+                    </option>
+                  ))}
+                  <option value="unassign">Unassign Lead</option>
+                </select>
+                {assignSuccess && (
+                  <span className="text-xs text-emerald-700 font-bold flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200">
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{assignSuccess}</span>
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
+                {lead.assigned_profile?.full_name || 'Assigned to your account'}
+              </span>
+            )}
           </div>
         </div>
 

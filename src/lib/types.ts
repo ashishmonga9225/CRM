@@ -18,9 +18,11 @@ export type UserRole = 'admin' | 'executive';
 export interface Profile {
   id: string;
   full_name?: string;
+  email?: string;
   role: UserRole;
   is_active: boolean;
   created_at: string;
+  lead_count?: number;
 }
 
 export interface Project {
@@ -68,6 +70,7 @@ export interface Lead {
   next_follow_up_at?: string | null;
   lost_reason?: string | null;
   assigned_to?: string | null;
+  assigned_profile?: { id: string; full_name?: string; role?: string; email?: string } | null;
   created_by?: string | null;
   created_at: string;
   updated_at: string;

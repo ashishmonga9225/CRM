@@ -12,16 +12,21 @@ import {
   FileText,
   Plus,
 } from 'lucide-react';
-import { Lead, LeadStatus } from '@/lib/types';
-import { fetchLeads, updateLeadStatus } from '@/lib/storage';
+import { Lead, LeadStatus, Profile } from '@/lib/types';
+import { fetchLeads, updateLeadStatus, fetchTeamMembers } from '@/lib/storage';
+import { useAuth } from '@/lib/auth';
 import LogFollowUpModal from '@/components/LogFollowUpModal';
 import WhatsAppModal from '@/components/WhatsAppModal';
 import LeadNotesModal from '@/components/LeadNotesModal';
+import { ShieldCheck } from 'lucide-react';
 
 type FilterCategory = 'all' | 'interested' | 'not_interested' | 'new' | 'visits' | 'booked';
 
 export default function LeadStatusBoardPage() {
+  const { user } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [teamMembers, setTeamMembers] = useState<Profile[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterCategory>('all');
   const [search, setSearch] = useState('');
@@ -32,14 +37,18 @@ export default function LeadStatusBoardPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const data = await fetchLeads();
+    const [data, team] = await Promise.all([
+      fetchLeads(user),
+      user?.role === 'admin' ? fetchTeamMembers() : Promise.resolve([]),
+    ]);
     setLeads(data);
+    if (team) setTeamMembers(team);
     setLoading(false);
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user]);
 
   const isInterested = (l: Lead) => {
     return (
@@ -74,6 +83,14 @@ export default function LeadStatusBoardPage() {
       (lead.requirement && lead.requirement.toLowerCase().includes(q));
 
     if (!matchesSearch) return false;
+
+    if (user?.role === 'admin' && selectedAgent !== 'all') {
+      if (selectedAgent === 'unassigned') {
+        if (lead.assigned_to) return false;
+      } else {
+        if (lead.assigned_to !== selectedAgent) return false;
+      }
+    }
 
     if (activeFilter === 'all') return true;
     if (activeFilter === 'interested') return isInterested(lead);
@@ -219,6 +236,52 @@ export default function LeadStatusBoardPage() {
           </button>
         )}
       </div>
+
+      {/* Agent Filter (Super Admin only) */}
+      {user?.role === 'admin' && teamMembers.length > 0 && (
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-bold scrollbar-none">
+          <span className="text-[11px] font-bold text-purple-700 mr-1 flex items-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Agent:</span>
+          </span>
+          <button
+            onClick={() => setSelectedAgent('all')}
+            className={`px-3 py-1 rounded-full whitespace-nowrap transition-all ${
+              selectedAgent === 'all'
+                ? 'bg-purple-700 text-white shadow-sm'
+                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            All Agents ({leads.length})
+          </button>
+          <button
+            onClick={() => setSelectedAgent('unassigned')}
+            className={`px-3 py-1 rounded-full whitespace-nowrap transition-all ${
+              selectedAgent === 'unassigned'
+                ? 'bg-purple-700 text-white shadow-sm'
+                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            Unassigned ({leads.filter(l => !l.assigned_to).length})
+          </button>
+          {teamMembers.map(tm => {
+            const count = leads.filter(l => l.assigned_to === tm.id).length;
+            return (
+              <button
+                key={tm.id}
+                onClick={() => setSelectedAgent(tm.id)}
+                className={`px-3 py-1 rounded-full whitespace-nowrap transition-all ${
+                  selectedAgent === tm.id
+                    ? 'bg-purple-700 text-white shadow-sm'
+                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {tm.full_name} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Interactive Status Filter Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-bold scrollbar-none">
