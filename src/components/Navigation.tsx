@@ -64,15 +64,13 @@ export default function Navigation() {
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Add Single Lead</span>
           </Link>
-          {user?.role === 'admin' && (
-            <Link
-              href="/import"
-              className="w-full flex items-center justify-center gap-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 font-semibold py-2 px-3 rounded-xl border border-emerald-500/30 transition-all text-xs"
-            >
-              <UploadCloud className="w-4 h-4" />
-              <span>Bulk Upload Excel</span>
-            </Link>
-          )}
+          <Link
+            href="/import"
+            className="w-full flex items-center justify-center gap-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 font-semibold py-2 px-3 rounded-xl border border-emerald-500/30 transition-all text-xs"
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>Bulk Upload Excel</span>
+          </Link>
         </div>
 
         {/* Navigation Items */}

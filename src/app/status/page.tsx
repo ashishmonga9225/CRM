@@ -129,15 +129,13 @@ export default function LeadStatusBoardPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {user?.role === 'admin' && (
-            <Link
-              href="/import"
-              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md active:scale-95 transition-all"
-            >
-              <Upload className="w-4 h-4" />
-              <span>Bulk Upload Excel</span>
-            </Link>
-          )}
+          <Link
+            href="/import"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md active:scale-95 transition-all"
+          >
+            <Upload className="w-4 h-4" />
+            <span>Bulk Upload Excel</span>
+          </Link>
           <button
             onClick={loadData}
             className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all shadow-sm"

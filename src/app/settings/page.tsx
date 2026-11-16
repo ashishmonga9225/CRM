@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   User,
@@ -16,6 +17,7 @@ import {
   Calendar,
   MessageSquare,
   Phone,
+  UploadCloud,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { fetchLeads } from '@/lib/storage';
@@ -382,6 +384,33 @@ export default function SettingsPage() {
             <span>Run Backup Now</span>
           </button>
         </div>
+      </div>
+
+      {/* 5. Bulk Excel Lead Import */}
+      <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <UploadCloud className="w-4 h-4 text-emerald-600" />
+            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Bulk Lead Import
+            </h3>
+          </div>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+            Excel / CSV
+          </span>
+        </div>
+
+        <p className="text-xs text-slate-600 leading-relaxed">
+          Quickly upload multiple leads from an Excel (.xlsx, .csv) spreadsheet. All imported leads will automatically be added to your account.
+        </p>
+
+        <Link
+          href="/import"
+          className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 transition-all active:scale-95"
+        >
+          <UploadCloud className="w-4 h-4" />
+          <span>Go to Bulk Lead Upload</span>
+        </Link>
       </div>
     </div>
   );

@@ -2,8 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Phone, MessageSquare, ChevronRight, Clock, Building2, CheckCircle2, FileText, Plus } from 'lucide-react';
-import { Lead } from '@/lib/types';
+import { Phone, MessageSquare, ChevronRight, Clock, Building2, CheckCircle2, FileText, Plus, User } from 'lucide-react';
+import { Lead, Profile } from '@/lib/types';
 
 interface LeadCardProps {
   lead: Lead;
@@ -11,6 +11,9 @@ interface LeadCardProps {
   onWhatsApp?: (lead: Lead) => void;
   onScheduleVisit?: (lead: Lead) => void;
   onViewNotes?: (lead: Lead) => void;
+  isAdmin?: boolean;
+  teamMembers?: Profile[];
+  onAssignLead?: (lead: Lead, targetUserId: string) => void | Promise<void>;
 }
 
 export default function LeadCard({
@@ -18,6 +21,9 @@ export default function LeadCard({
   onLogFollowUp,
   onWhatsApp,
   onViewNotes,
+  isAdmin,
+  teamMembers,
+  onAssignLead,
 }: LeadCardProps) {
   const cleanPhone = lead.phone.replace(/\D/g, '');
   const waPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
@@ -87,7 +93,30 @@ export default function LeadCard({
                 {lead.source}
               </span>
             )}
-            {lead.assigned_profile?.full_name ? (
+            {isAdmin && teamMembers && teamMembers.length > 0 && onAssignLead ? (
+              <div
+                className="inline-flex items-center gap-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg px-2 py-0.5 shadow-2xs transition-colors"
+                onClick={e => e.stopPropagation()}
+              >
+                <User className="w-3 h-3 text-purple-600 flex-shrink-0" />
+                <span className="text-[10px] font-bold text-purple-700">Assign:</span>
+                <select
+                  value={lead.assigned_to || ''}
+                  onChange={e => {
+                    e.stopPropagation();
+                    onAssignLead(lead, e.target.value);
+                  }}
+                  className="bg-transparent text-[11px] font-bold text-purple-900 focus:outline-none cursor-pointer pr-1 py-0.5"
+                >
+                  <option value="">Unassigned</option>
+                  {teamMembers.map(member => (
+                    <option key={member.id} value={member.id}>
+                      {member.full_name || member.email} {member.role === 'admin' ? '(Admin)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : lead.assigned_profile?.full_name ? (
               <span className="px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold">
                 👤 {lead.assigned_profile.full_name}
               </span>

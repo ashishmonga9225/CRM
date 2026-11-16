@@ -25,7 +25,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { Lead, Temperature, LeadStatus, Project, Profile } from '@/lib/types';
-import { fetchLeads, fetchProjects, fetchTeamMembers, assignBulkLeads } from '@/lib/storage';
+import { fetchLeads, fetchProjects, fetchTeamMembers, assignBulkLeads, assignLead } from '@/lib/storage';
 import { exportLeadsToExcel, exportLeadsToPDF } from '@/lib/exportImport';
 import { useAuth } from '@/lib/auth';
 import LogFollowUpModal from '@/components/LogFollowUpModal';
@@ -150,6 +150,37 @@ export default function LeadsListPage() {
     setBulkAssigning(false);
   };
 
+  const handleSingleAssign = async (lead: Lead, targetUserId: string) => {
+    const targetMember = teamMembers.find(m => m.id === targetUserId);
+    const targetName = targetMember ? (targetMember.full_name || targetMember.email) : 'Unassigned';
+
+    setLeads(prev =>
+      prev.map(l =>
+        l.id === lead.id
+          ? {
+              ...l,
+              assigned_to: targetUserId || null,
+              assigned_profile: targetMember
+                ? { id: targetMember.id, full_name: targetMember.full_name, role: targetMember.role }
+                : undefined,
+            }
+          : l
+      )
+    );
+
+    const success = await assignLead(
+      lead.id,
+      targetUserId || null,
+      targetMember ? (targetMember.full_name || targetMember.email) : undefined,
+      user?.name || 'Admin'
+    );
+
+    if (success) {
+      setAssignmentNotice(`Lead "${lead.name}" assigned to ${targetName}!`);
+      setTimeout(() => setAssignmentNotice(''), 3500);
+    }
+  };
+
   // Reset to page 1 whenever filters change
   useEffect(() => {
     setCurrentPage(1);
@@ -271,15 +302,13 @@ export default function LeadsListPage() {
             )}
           </div>
 
-          {user?.role === 'admin' && (
-            <Link
-              href="/import"
-              className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-2.5 rounded-xl border border-emerald-200 transition-all"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Excel Import</span>
-            </Link>
-          )}
+          <Link
+            href="/import"
+            className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-2.5 rounded-xl border border-emerald-200 transition-all"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Excel Import</span>
+          </Link>
           <Link
             href="/leads/new"
             className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl shadow-md active:scale-95 transition-all"
@@ -485,6 +514,9 @@ export default function LeadsListPage() {
                 onLogFollowUp={l => setFollowUpLead(l)}
                 onWhatsApp={l => setWhatsAppLead(l)}
                 onViewNotes={l => setNotesLead(l)}
+                isAdmin={user?.role === 'admin'}
+                teamMembers={teamMembers}
+                onAssignLead={handleSingleAssign}
               />
             ))}
           </div>
@@ -565,19 +597,18 @@ export default function LeadsListPage() {
                       <td className="py-3 px-4 font-mono font-semibold">{lead.phone}</td>
                       {user?.role === 'admin' && (
                         <td className="py-3 px-4">
-                          {lead.assigned_profile?.full_name ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                              👤 {lead.assigned_profile.full_name}
-                            </span>
-                          ) : lead.assigned_to ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                              👤 Assigned
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500">
-                              Unassigned
-                            </span>
-                          )}
+                          <select
+                            value={lead.assigned_to || ''}
+                            onChange={e => handleSingleAssign(lead, e.target.value)}
+                            className="text-[11px] font-bold bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-900 rounded-lg px-2 py-1 focus:outline-none cursor-pointer"
+                          >
+                            <option value="">Unassigned</option>
+                            {teamMembers.map(m => (
+                              <option key={m.id} value={m.id}>
+                                {m.full_name || m.email} {m.role === 'admin' ? '(Admin)' : ''}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                       )}
                       <td className="py-3 px-4">

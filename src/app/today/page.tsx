@@ -11,9 +11,10 @@ import {
   Sparkles,
   ShieldCheck,
   User,
+  CheckCircle2,
 } from 'lucide-react';
 import { Lead, Profile } from '@/lib/types';
-import { fetchLeads, fetchTeamMembers } from '@/lib/storage';
+import { fetchLeads, fetchTeamMembers, assignLead } from '@/lib/storage';
 import { useAuth } from '@/lib/auth';
 import LeadCard from '@/components/LeadCard';
 import LogFollowUpModal from '@/components/LogFollowUpModal';
@@ -33,6 +34,7 @@ export default function TodayPage() {
   const [activeLeadForVisit, setActiveLeadForVisit] = useState<Lead | null>(null);
   const [activeLeadForWhatsApp, setActiveLeadForWhatsApp] = useState<Lead | null>(null);
   const [activeLeadForNotes, setActiveLeadForNotes] = useState<Lead | null>(null);
+  const [assignmentNotice, setAssignmentNotice] = useState('');
 
   const loadData = async () => {
     setLoading(true);
@@ -43,6 +45,38 @@ export default function TodayPage() {
     setLeads(data);
     if (team) setTeamMembers(team);
     setLoading(false);
+  };
+
+  const handleAssignLead = async (lead: Lead, targetUserId: string) => {
+    const targetMember = teamMembers.find(m => m.id === targetUserId);
+    const targetName = targetMember ? (targetMember.full_name || targetMember.email) : 'Unassigned';
+
+    // Optimistically update lead in local state
+    setLeads(prev =>
+      prev.map(l =>
+        l.id === lead.id
+          ? {
+              ...l,
+              assigned_to: targetUserId || null,
+              assigned_profile: targetMember
+                ? { id: targetMember.id, full_name: targetMember.full_name, role: targetMember.role }
+                : undefined,
+            }
+          : l
+      )
+    );
+
+    const success = await assignLead(
+      lead.id,
+      targetUserId || null,
+      targetMember ? (targetMember.full_name || targetMember.email) : undefined,
+      user?.name || 'Admin'
+    );
+
+    if (success) {
+      setAssignmentNotice(`Lead "${lead.name}" assigned to ${targetName}!`);
+      setTimeout(() => setAssignmentNotice(''), 3000);
+    }
   };
 
   useEffect(() => {
@@ -330,6 +364,9 @@ export default function TodayPage() {
                     onWhatsApp={l => setActiveLeadForWhatsApp(l)}
                     onScheduleVisit={l => setActiveLeadForVisit(l)}
                     onViewNotes={l => setActiveLeadForNotes(l)}
+                    isAdmin={user?.role === 'admin'}
+                    teamMembers={teamMembers}
+                    onAssignLead={handleAssignLead}
                   />
                 ))}
               </div>
@@ -353,6 +390,9 @@ export default function TodayPage() {
                     onWhatsApp={l => setActiveLeadForWhatsApp(l)}
                     onScheduleVisit={l => setActiveLeadForVisit(l)}
                     onViewNotes={l => setActiveLeadForNotes(l)}
+                    isAdmin={user?.role === 'admin'}
+                    teamMembers={teamMembers}
+                    onAssignLead={handleAssignLead}
                   />
                 ))}
               </div>
@@ -380,6 +420,9 @@ export default function TodayPage() {
                     onWhatsApp={l => setActiveLeadForWhatsApp(l)}
                     onScheduleVisit={l => setActiveLeadForVisit(l)}
                     onViewNotes={l => setActiveLeadForNotes(l)}
+                    isAdmin={user?.role === 'admin'}
+                    teamMembers={teamMembers}
+                    onAssignLead={handleAssignLead}
                   />
                 ))}
               </div>
@@ -403,6 +446,9 @@ export default function TodayPage() {
                     onWhatsApp={l => setActiveLeadForWhatsApp(l)}
                     onScheduleVisit={l => setActiveLeadForVisit(l)}
                     onViewNotes={l => setActiveLeadForNotes(l)}
+                    isAdmin={user?.role === 'admin'}
+                    teamMembers={teamMembers}
+                    onAssignLead={handleAssignLead}
                   />
                 ))}
               </div>
@@ -445,6 +491,14 @@ export default function TodayPage() {
           onClose={() => setActiveLeadForNotes(null)}
           onNotesUpdated={loadData}
         />
+      )}
+
+      {/* Instant Assignment Toast Notice */}
+      {assignmentNotice && (
+        <div className="fixed bottom-20 md:bottom-8 right-6 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 border border-slate-700 animate-in fade-in slide-in-from-bottom-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>{assignmentNotice}</span>
+        </div>
       )}
     </div>
   );

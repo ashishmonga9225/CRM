@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { Lead, LeadStatus, Temperature } from './types';
 import { saveLead, checkDuplicatePhone, addFollowUp } from './storage';
+import type { UserProfile } from './auth';
 
 export interface ParsedLeadRow {
   name: string;
@@ -190,7 +191,8 @@ export async function parseExcelOrCsvFile(file: File): Promise<ParsedLeadRow[]> 
 // Bulk Save Parsed Leads into CRM
 export async function commitBulkLeads(
   leadsToImport: ParsedLeadRow[],
-  skipDuplicates = true
+  skipDuplicates = true,
+  currentUser?: UserProfile | null
 ): Promise<{ added: number; updated: number; skipped: number }> {
   let added = 0;
   let updated = 0;
@@ -206,14 +208,17 @@ export async function commitBulkLeads(
         skipped++;
         continue;
       } else {
-        await saveLead({
-          id: existing.id,
-          name: item.name || existing.name,
-          status: item.status || existing.status,
-          temperature: item.temperature || existing.temperature,
-          requirement: item.requirement || existing.requirement,
-          lost_reason: item.status === 'lost' ? item.notes || 'Marked lost during import' : undefined,
-        });
+        await saveLead(
+          {
+            id: existing.id,
+            name: item.name || existing.name,
+            status: item.status || existing.status,
+            temperature: item.temperature || existing.temperature,
+            requirement: item.requirement || existing.requirement,
+            lost_reason: item.status === 'lost' ? item.notes || 'Marked lost during import' : undefined,
+          },
+          currentUser
+        );
         if (item.notes && item.notes.trim()) {
           await addFollowUp(existing.id, {
             channel: 'other',
@@ -226,17 +231,22 @@ export async function commitBulkLeads(
       }
     }
 
-    const created = await saveLead({
-      name: item.name,
-      phone: item.phone,
-      email: item.email,
-      status: item.status,
-      temperature: item.temperature,
-      source: item.source || 'Excel Import',
-      requirement: item.requirement,
-      lost_reason: item.status === 'lost' ? item.notes || 'Marked lost during import' : undefined,
-      next_follow_up_at: todayIso,
-    });
+    const created = await saveLead(
+      {
+        name: item.name,
+        phone: item.phone,
+        email: item.email,
+        status: item.status,
+        temperature: item.temperature,
+        source: item.source || 'Excel Import',
+        requirement: item.requirement,
+        lost_reason: item.status === 'lost' ? item.notes || 'Marked lost during import' : undefined,
+        next_follow_up_at: todayIso,
+        assigned_to: currentUser ? currentUser.id : undefined,
+        created_by: currentUser ? currentUser.id : undefined,
+      },
+      currentUser
+    );
     if (created && item.notes && item.notes.trim()) {
       await addFollowUp(created.id, {
         channel: 'other',

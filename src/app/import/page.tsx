@@ -42,27 +42,6 @@ export default function BulkImportPage() {
     skipped: number;
   } | null>(null);
 
-  if (user && user.role !== 'admin') {
-    return (
-      <div className="max-w-md mx-auto py-16 text-center space-y-4">
-        <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto shadow-sm">
-          <Shield className="w-7 h-7" />
-        </div>
-        <h2 className="text-xl font-bold text-slate-800">Super Admin Access Only</h2>
-        <p className="text-sm text-slate-500">
-          Bulk Lead Import is restricted to Super Administrator.
-        </p>
-        <Link
-          href="/today"
-          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-all shadow-md"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Return to Dashboard</span>
-        </Link>
-      </div>
-    );
-  }
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
@@ -87,7 +66,7 @@ export default function BulkImportPage() {
     setIsImporting(true);
 
     try {
-      const summary = await commitBulkLeads(parsedRows, skipDuplicates);
+      const summary = await commitBulkLeads(parsedRows, skipDuplicates, user);
       setResult(summary);
       setParsedRows([]);
       setFile(null);
@@ -128,6 +107,21 @@ export default function BulkImportPage() {
           <Download className="w-4 h-4" />
           <span>Sample Template</span>
         </button>
+      </div>
+
+      {/* User Context & Ownership Banner */}
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between text-xs shadow-xs">
+        <div className="flex items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+          <span className="font-semibold text-slate-700">
+            {user?.role === 'admin'
+              ? 'Super Admin Mode: Uploading leads into the CRM database.'
+              : `Executive Mode: All imported leads will automatically be assigned to your login (${user?.name || 'Executive'}).`}
+          </span>
+        </div>
+        <span className="px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold capitalize flex-shrink-0">
+          👤 {user?.name || user?.role || 'Executive'}
+        </span>
       </div>
 
       {/* SUCCESS CONFIRMATION BANNER */}
