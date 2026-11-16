@@ -64,13 +64,15 @@ export default function Navigation() {
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Add Single Lead</span>
           </Link>
-          <Link
-            href="/import"
-            className="w-full flex items-center justify-center gap-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 font-semibold py-2 px-3 rounded-xl border border-emerald-500/30 transition-all text-xs"
-          >
-            <UploadCloud className="w-4 h-4" />
-            <span>Bulk Upload Excel</span>
-          </Link>
+          {user?.role === 'admin' && (
+            <Link
+              href="/import"
+              className="w-full flex items-center justify-center gap-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 font-semibold py-2 px-3 rounded-xl border border-emerald-500/30 transition-all text-xs"
+            >
+              <UploadCloud className="w-4 h-4" />
+              <span>Bulk Upload Excel</span>
+            </Link>
+          )}
         </div>
 
         {/* Navigation Items */}
@@ -112,7 +114,7 @@ export default function Navigation() {
             }`}
           >
             <Users className="w-5 h-5" />
-            <span>All Leads</span>
+            <span>{user?.role === 'admin' ? 'All Leads' : 'My Leads'}</span>
           </Link>
 
           <Link
@@ -158,17 +160,19 @@ export default function Navigation() {
             </Link>
           )}
 
-          <Link
-            href="/more"
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
-              isMore
-                ? 'bg-blue-600/20 text-blue-400 font-semibold'
-                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <MoreHorizontal className="w-5 h-5" />
-            <span>More & Reports</span>
-          </Link>
+          {user?.role === 'admin' && (
+            <Link
+              href="/more"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
+                isMore
+                  ? 'bg-blue-600/20 text-blue-400 font-semibold'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <MoreHorizontal className="w-5 h-5" />
+              <span>More & Reports</span>
+            </Link>
+          )}
         </nav>
 
         {/* Bottom Profile / Settings */}
@@ -243,16 +247,28 @@ export default function Navigation() {
             <span className="text-[11px] mt-0.5 tracking-tight">Leads</span>
           </Link>
 
-          {/* 5. More */}
-          <Link
-            href="/more"
-            className={`flex flex-col items-center justify-center flex-1 h-full py-1 ${
-              isMore || isSettings || isImport ? 'text-blue-600 font-bold' : 'text-slate-600'
-            }`}
-          >
-            <MoreHorizontal className="w-6 h-6 stroke-[2]" />
-            <span className="text-[11px] mt-0.5 tracking-tight">More</span>
-          </Link>
+          {/* 5. More (Admin) or Settings (Executive) */}
+          {user?.role === 'admin' ? (
+            <Link
+              href="/more"
+              className={`flex flex-col items-center justify-center flex-1 h-full py-1 ${
+                isMore || isImport ? 'text-blue-600 font-bold' : 'text-slate-600'
+              }`}
+            >
+              <MoreHorizontal className="w-6 h-6 stroke-[2]" />
+              <span className="text-[11px] mt-0.5 tracking-tight">More</span>
+            </Link>
+          ) : (
+            <Link
+              href="/settings"
+              className={`flex flex-col items-center justify-center flex-1 h-full py-1 ${
+                isSettings ? 'text-blue-600 font-bold' : 'text-slate-600'
+              }`}
+            >
+              <Settings className="w-6 h-6 stroke-[2]" />
+              <span className="text-[11px] mt-0.5 tracking-tight">Settings</span>
+            </Link>
+          )}
         </div>
       </nav>
     </>

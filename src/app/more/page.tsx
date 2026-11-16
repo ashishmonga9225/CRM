@@ -41,14 +41,42 @@ export default function MorePage() {
 
   const loadData = async () => {
     setLoading(true);
-    const data = await fetchLeads();
+    const data = await fetchLeads(user);
     setLeads(data);
     setLoading(false);
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user]);
+
+  if (user && user.role !== 'admin') {
+    return (
+      <div className="max-w-md mx-auto py-16 text-center space-y-4">
+        <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto shadow-sm">
+          <ShieldCheck className="w-7 h-7 text-red-600" />
+        </div>
+        <h2 className="text-xl font-black text-slate-800">Super Admin Access Only</h2>
+        <p className="text-xs sm:text-sm text-slate-500">
+          Company analytics, database configuration, and bulk data tools are only accessible to the Super Admin.
+        </p>
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <Link
+            href="/today"
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-xl text-xs transition-all shadow-md"
+          >
+            <span>Today&apos;s Follow-ups</span>
+          </Link>
+          <Link
+            href="/settings"
+            className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-4 py-2 rounded-xl text-xs transition-all"
+          >
+            <span>My Account Settings</span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   // Compute metrics
   const totalLeads = leads.length;

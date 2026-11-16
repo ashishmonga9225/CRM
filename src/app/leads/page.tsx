@@ -168,10 +168,10 @@ export default function LeadsListPage() {
       <div className="flex items-center justify-between">
         <div>
           <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-600">
-            Directory ({filteredLeads.length})
+            {user?.role === 'admin' ? 'Directory' : 'My Leads'} ({filteredLeads.length})
           </span>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            All Leads
+            {user?.role === 'admin' ? 'All Leads' : 'My Assigned Leads'}
           </h1>
         </div>
 
@@ -271,13 +271,15 @@ export default function LeadsListPage() {
             )}
           </div>
 
-          <Link
-            href="/import"
-            className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-2.5 rounded-xl border border-emerald-200 transition-all"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Excel Import</span>
-          </Link>
+          {user?.role === 'admin' && (
+            <Link
+              href="/import"
+              className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-2.5 rounded-xl border border-emerald-200 transition-all"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Excel Import</span>
+            </Link>
+          )}
           <Link
             href="/leads/new"
             className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl shadow-md active:scale-95 transition-all"

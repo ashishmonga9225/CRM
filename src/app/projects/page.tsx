@@ -14,8 +14,10 @@ import {
 } from 'lucide-react';
 import { Project, Lead } from '@/lib/types';
 import { fetchProjects, fetchLeads, createProject } from '@/lib/storage';
+import { useAuth } from '@/lib/auth';
 
 export default function ProjectsPage() {
+  const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,7 @@ export default function ProjectsPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [projData, leadData] = await Promise.all([fetchProjects(), fetchLeads()]);
+    const [projData, leadData] = await Promise.all([fetchProjects(), fetchLeads(user)]);
     setProjects(projData);
     setLeads(leadData);
     setLoading(false);
@@ -39,7 +41,7 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user]);
 
   const handleAddProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,13 +80,15 @@ export default function ProjectsPage() {
           </h1>
         </div>
 
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl shadow-md active:scale-95 transition-all"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>Add Project</span>
-        </button>
+        {user?.role === 'admin' && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl shadow-md active:scale-95 transition-all"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>Add Project</span>
+          </button>
+        )}
       </div>
 
       {loading ? (

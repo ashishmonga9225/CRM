@@ -27,7 +27,7 @@ export default function TodayPage() {
   const [teamMembers, setTeamMembers] = useState<Profile[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string>('all');
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'all' | 'overdue' | 'due' | 'upcoming'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'overdue' | 'due' | 'pending' | 'upcoming'>('all');
   
   const [activeLeadForFollowUp, setActiveLeadForFollowUp] = useState<Lead | null>(null);
   const [activeLeadForVisit, setActiveLeadForVisit] = useState<Lead | null>(null);
@@ -72,6 +72,8 @@ export default function TodayPage() {
     return dStr === todayStr;
   });
 
+  const pendingLeads = activeFollowUpLeads.filter(l => !l.next_follow_up_at);
+
   const upcomingLeads = activeFollowUpLeads.filter(l => {
     if (!l.next_follow_up_at) return false;
     const dStr = new Date(l.next_follow_up_at).toISOString().split('T')[0];
@@ -106,7 +108,7 @@ export default function TodayPage() {
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <button
           onClick={() => setActiveTab(activeTab === 'overdue' ? 'all' : 'overdue')}
           className={`p-3 rounded-2xl border text-left transition-all ${
@@ -139,6 +141,23 @@ export default function TodayPage() {
             <CalendarCheck className="w-3.5 h-3.5 text-amber-600" />
           </div>
           <p className="text-2xl font-black text-amber-800">{dueTodayLeads.length}</p>
+        </button>
+
+        <button
+          onClick={() => setActiveTab(activeTab === 'pending' ? 'all' : 'pending')}
+          className={`p-3 rounded-2xl border text-left transition-all ${
+            activeTab === 'pending'
+              ? 'ring-2 ring-blue-500 bg-blue-100/60 border-blue-400'
+              : 'bg-blue-50/80 border-blue-200 hover:border-blue-300'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-extrabold text-blue-800 uppercase tracking-tight">
+              Needs Date
+            </span>
+            <Clock className="w-3.5 h-3.5 text-blue-600" />
+          </div>
+          <p className="text-2xl font-black text-blue-800">{pendingLeads.length}</p>
         </button>
 
         <button
@@ -241,6 +260,19 @@ export default function TodayPage() {
           </span>
         </button>
         <button
+          onClick={() => setActiveTab('pending')}
+          className={`px-3.5 py-1.5 rounded-full transition-all whitespace-nowrap flex items-center gap-1.5 ${
+            activeTab === 'pending'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'bg-white border border-blue-200 text-blue-800 hover:bg-blue-50'
+          }`}
+        >
+          <span>Needs Date</span>
+          <span className="px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-800 text-[10px]">
+            {pendingLeads.length}
+          </span>
+        </button>
+        <button
           onClick={() => setActiveTab('upcoming')}
           className={`px-3.5 py-1.5 rounded-full transition-all whitespace-nowrap flex items-center gap-1.5 ${
             activeTab === 'upcoming'
@@ -314,6 +346,33 @@ export default function TodayPage() {
               </div>
               <div className="space-y-3">
                 {dueTodayLeads.map(lead => (
+                  <LeadCard
+                    key={lead.id}
+                    lead={lead}
+                    onLogFollowUp={l => setActiveLeadForFollowUp(l)}
+                    onWhatsApp={l => setActiveLeadForWhatsApp(l)}
+                    onScheduleVisit={l => setActiveLeadForVisit(l)}
+                    onViewNotes={l => setActiveLeadForNotes(l)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Pending Follow-up / Needs Date Scheduled */}
+          {(activeTab === 'all' || activeTab === 'pending') && pendingLeads.length > 0 && (
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse" />
+                <h2 className="text-sm font-extrabold text-blue-900 uppercase tracking-wider">
+                  Needs Follow-up Date ({pendingLeads.length})
+                </h2>
+                <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">
+                  Action Needed
+                </span>
+              </div>
+              <div className="space-y-3">
+                {pendingLeads.map(lead => (
                   <LeadCard
                     key={lead.id}
                     lead={lead}

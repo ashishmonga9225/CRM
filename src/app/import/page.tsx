@@ -14,6 +14,7 @@ import {
   Sparkles,
   RefreshCw,
   ArrowRight,
+  Shield,
 } from 'lucide-react';
 import {
   parseExcelOrCsvFile,
@@ -21,9 +22,11 @@ import {
   downloadExcelTemplate,
   ParsedLeadRow,
 } from '@/lib/exportImport';
+import { useAuth } from '@/lib/auth';
 
 export default function BulkImportPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -38,6 +41,27 @@ export default function BulkImportPage() {
     updated: number;
     skipped: number;
   } | null>(null);
+
+  if (user && user.role !== 'admin') {
+    return (
+      <div className="max-w-md mx-auto py-16 text-center space-y-4">
+        <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto shadow-sm">
+          <Shield className="w-7 h-7" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800">Super Admin Access Only</h2>
+        <p className="text-sm text-slate-500">
+          Bulk Lead Import is restricted to Super Administrator.
+        </p>
+        <Link
+          href="/today"
+          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-all shadow-md"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Return to Dashboard</span>
+        </Link>
+      </div>
+    );
+  }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
