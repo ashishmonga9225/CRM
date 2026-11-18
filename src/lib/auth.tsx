@@ -133,7 +133,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ROUTE PROTECTION
   useEffect(() => {
     if (!loading) {
-      const isPublicRoute = pathname === '/login';
+      const publicRoutes = ['/login', '/register', '/signup'];
+      const isPublicRoute = publicRoutes.includes(pathname);
       if (!user && !isPublicRoute) {
         router.replace('/login');
       } else if (user && isPublicRoute) {

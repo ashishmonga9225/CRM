@@ -22,8 +22,9 @@ export default function Navigation() {
   const pathname = usePathname();
   const { user } = useAuth();
 
-  // Do not show navigation on login page
-  if (pathname === '/login') {
+  // Do not show navigation on auth pages
+  const isAuthPage = pathname === '/login' || pathname === '/register' || pathname === '/signup';
+  if (isAuthPage) {
     return null;
   }
 
